@@ -72,7 +72,8 @@ button,input{font-family:inherit}
 .cdet{font-size:8.2pt;color:#3c4757;display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:2px}
 .cdet b{color:var(--mute);font-weight:normal}
 .cdet>span{justify-self:start;text-align:right}
-.d-title{margin:14px 0 12px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.d-proj{margin:16px 0 0;font-size:22pt;line-height:1.2;color:var(--navy);font-weight:bold}
+.d-title{margin:10px 0 12px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
 .d-title h2{font-size:15pt;margin:0}
 .tag{background:var(--amber);color:var(--navy);font-weight:bold;padding:4px 10px;border-radius:3px;font-size:10pt;white-space:nowrap}
 #doc h4{font-size:10.5pt;color:var(--navy);margin:14px 0 6px;padding-right:7px;border-right:4px solid var(--amber)}
@@ -507,12 +508,12 @@ function render({ header, fin, items }){
       ['ת.ד.', L(c.po_box)], ['טלפון', L(c.phone)], ['דוא"ל', L(c.email)],
       ['עוסק מורשה', L(c.vat_id)], ['תיק ניכויים', L(c.deductions_file)] ])}</div>
   </div>
-  <div class="d-title"><h2>חשבון חלקי לקבלן משנה מס' ${esc(d.seq)}</h2><span class="tag">חודש ביצוע ${L(d.month)}</span></div>
+  <h1 class="d-proj">פרויקט ${d.project_name ? esc(d.project_name) : '<span class="missing">שם הפרויקט לא זוהה – לחצו להשלמה</span>'}</h1>
+  <div class="d-title"><h2>חשבון חלקי מספר ${esc(d.seq)} לקבלן משנה ${T(k.name)}</h2></div>
   <div class="two">
     <div><h4>פרטי החשבון</h4><table class="kv">${kv([
-      ['פרויקט', esc(d.project_name)], ['מס\' פרויקט', L(d.project_code)], ['מס\' חוזה', L(d.contract_code)],
-      ['מס\' חשבון חלקי', L(d.account_code)], ['חודש ביצוע', L(d.month)], ['תאריך הפקה', L(d.date)],
-      ['תנאי תשלום', esc(d.payment_terms)], ['תאריך תשלום מחושב', L(d.payment_date)] ])}</table></div>
+      ['מספר חוזה', L(d.contract_code)], ['מספר חשבון חלקי', L(d.account_code)], ['חודש ביצוע', L(d.month)],
+      ['תאריך הפקה', L(d.date)], ['תאריך תשלום מחושב', L(d.payment_date)] ])}</table></div>
     <div><h4>פרטי הקבלן</h4><table class="kv">${kv([
       ['שם הקבלן', T(k.name)], ['מס\' קבלן באלקטרה', L(k.electra_no)], ['כתובת', T(k.address)],
       ['טלפון', L(k.phone)], ['פקס', L(k.fax)] ])}</table></div>
