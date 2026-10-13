@@ -496,11 +496,10 @@ $('go').onclick = async () => {
 /* ---------- render ---------- */
 const LEVEL = ['', 'מבנה', 'פרק', 'תת פרק'];
 function buildItems(items, groups){
-  let rows = '', stack = [], grand = 0; const summary = [];
+  let rows = '', stack = [], grand = 0;
   const close = () => {
     const g = stack.pop(), d = stack.length+1, cls = 't'+Math.min(d,3);
     rows += `<tr class="${cls}"><td></td><td colspan="7">סה"כ ל${LEVEL[Math.min(d,3)]} ${L(g.code)}: ${esc(g.name)}</td><td class="num">${money(g.total)}</td></tr>`;
-    if(d <= 2) summary.push({ level:d, code:g.code, name:g.name, total:g.total });
   };
   for(const it of items){
     const parts = it.code.split('.'), pref = [];
@@ -519,7 +518,7 @@ function buildItems(items, groups){
   }
   while(stack.length) close();
   rows += `<tr class="tot"><td></td><td colspan="7">מחיר כולל</td><td class="num">${money(grand)}</td></tr>`;
-  return { rows, summary, grand };
+  return { rows, grand };
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
@@ -547,7 +546,7 @@ const SUM_GROUPS = [
 ];
 const SUM_COLS = [['cur','סכום שוטף (₪)','בחשבון זה'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['amt','סכום (₪)','']];
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
-function buildSummary(s, d){
+function buildSummary(s){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
   const template = !(s.rows && s.rows.length) && !Object.keys(info).length;
   const rows = template ? SUM_TEMPLATE : (s.rows || []);
@@ -585,7 +584,7 @@ function buildSummary(s, d){
   const offset = (s.offset || []).length ? `<h4>קיזוז חו"ג</h4><table class="grid sumt">${thead}<tbody>${
     s.offset.map(r => tr(r, r.op === '=' ? 'sub' : '')).join('')}</tbody></table>` : '';
 
-  return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+  return `<h4>טבלה מסכמת</h4>
   ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
   <table class="grid sumt">
     <caption class="sr">טבלה מסכמת: סכומי החשבון לפי רכיב</caption>
@@ -598,21 +597,11 @@ function buildSummary(s, d){
 
 function render({ header, fin, items }){
   const c = header.company||{}, d = header.doc||{}, k = header.contractor||{};
-  const { rows, summary, grand } = buildItems(items, fin.groups||{});
+  const { rows, grand } = buildItems(items, fin.groups||{});
   const pct = Math.max(0, Math.min(100, n(fin.exec_pct)));
   const kv = arr => arr.map(r=>`<tr><td>${r[0]}</td><td>${r[1] || '<span class="missing">לא זוהה – לחצו להשלמה</span>'}</td></tr>`).join('');
   const cd = arr => arr.filter(r=>r[1]).map(r=>`<b>${r[0]}</b><span>${r[1]}</span>`).join('');
 
-  const sumRows = summary.map(s => s.level===1
-      ? `<tr class="sub"><td>${LEVEL[1]} ${L(s.code)} – ${esc(s.name)}</td><td class="num">${money(s.total)}</td></tr>`
-      : `<tr><td>${L(s.code)} ${esc(s.name)}</td><td class="num">${money(s.total)}</td></tr>`).join('');
-
-  const pr = (fin.payment_rows||[]);
-  const payRows = pr.map((r,i) => {
-    const last = i === pr.length-1, lbl = r.label||'';
-    const cls = last ? 'final' : (/סה"כ|מצטבר בחשבון זה/.test(lbl) ? 'sub' : '');
-    return `<tr class="${cls}"><td>${T(lbl)}</td><td class="num ${n(r.amount)<0&&!last?'neg':''}">${money(r.amount)}</td></tr>`;
-  }).join('') + (n(fin.chg_offset) ? `<tr><td>קיזוז חו"ג מצטבר</td><td class="num neg">${money(fin.chg_offset)}</td></tr>` : '');
 
   const brand = logoData
     ? `<div class="brand"><img src="${logoData}" alt=""><div><div class="bname" style="font-size:16pt">${esc(c.name)}</div><div class="bsub">${esc(c.branch)}</div></div></div>`
@@ -638,21 +627,12 @@ function render({ header, fin, items }){
   <div class="kpis">
     <div class="kpi"><div class="l">מצטבר בחשבון זה</div><div class="v num">₪ ${money(fin.cumulative||grand)}</div></div>
     <div class="kpi main"><div class="l">לתשלום (לפני מע"מ)</div><div class="v num">₪ ${money(fin.total_pay)}</div></div>
-    <div class="kpi"><div class="l">סה"כ לתשלום כולל מע"מ</div><div class="v num">₪ ${money(fin.total_with_vat)}</div></div>
     <div class="kpi"><div class="l">ביצוע מתוך היקף חוזה ${L(money(fin.contract_scope)+' ₪')}</div><div class="v">${n(fin.exec_pct).toFixed(2)}%</div><div class="pbar"><span style="width:${pct}%"></span></div></div>
   </div>
-  <div class="two">
-    <div><h4>ריכוז לפי מבנה</h4><table class="grid">
-      <tr><th>מבנה / פרק</th><th style="width:34%">סכום מצטבר (₪)</th></tr>
-      ${sumRows}<tr class="grand"><td>סה"כ</td><td class="num">${money(grand)}</td></tr></table></div>
-    <div><h4>חישוב התשלום</h4><table class="grid">
-      <tr><th>רכיב</th><th style="width:34%">סכום (₪)</th></tr>${payRows}</table></div>
-  </div>
+  ${buildSummary(fin.summary || {})}
   ${fin.disclaimer ? `<div class="note">${esc(fin.disclaimer)}</div>` : ''}
   <div class="sign"><div>הוכן ע"י</div><div>נבדק ע"י מנהל הפרויקט</div><div>אושר ע"י מורשה חתימה</div></div>
 
-  <div class="html2pdf__page-break"></div>
-  ${buildSummary(fin.summary || {}, d)}
 
   <div class="html2pdf__page-break"></div>
   <div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
