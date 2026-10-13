@@ -19,6 +19,14 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 5. **Checks**: `runChecks` runs these validations: qty×price per line, sum of lines vs "מחיר כולל", payment math, VAT, execution %, missing fields, dates, and non-integer quantities in unit items.
 6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
 
+## Summary table (טבלה מסכמת)
+`buildSummary(fin.summary)` renders its own page between page 1 and the items. The data shape is `{ info:{orig, boq, incl_exc, balance, exc_mgr, overrun_mgr, adv_given, adv_left, due_date}, rows:[{label, op:'+'|'-'|'=', cur, cum, prev}], vat_rate }`.
+- **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.
+- **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
+- **Blocks:** blocks (עבודות / התייקרויות / עכבון / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
+- **Emphasis:** the pre-VAT total is the emphasised row. The incl.-VAT total is a quiet row.
+- **Not wired yet:** the parser does not fill `fin.summary` yet.
+
 ## Notes
 - The logo is stored via `window.storage` (the Claude-artifact API). The local fallback shim at the top of the script maps it to `localStorage`.
 - `window.__renderDemo(data)` is a test hook: it renders data without a PDF.

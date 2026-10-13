@@ -500,48 +500,56 @@ function buildItems(items, groups){
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
-   template only – data comes from fin.summary = { info:{key:value}, rows:{key:{cur,cum,prev}}, vat_rate } */
+   fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev}], vat_rate }
+   rows come in the order of the invoice; only what the invoice has is shown.
+   With no summary data at all, the full catalogue below is shown as an empty template. */
 const SUM_INFO = [
   { title:'היקף החוזה', rows:[['orig','סה"כ סעיפי חוזה מקורי'], ['boq','סה"כ סעיפי כתב כמויות חוזה'], ['incl_exc','סה"כ סעיפי חוזה כולל חריגים'], ['balance','סה"כ יתרת חוזה']] },
   { title:'חריגים (מנהל)', rows:[['exc_mgr','סה"כ סעיפים חריגים'], ['overrun_mgr','סה"כ חריגה בסעיפי חוזה']] },
   { title:'מקדמות ופרעון', rows:[['adv_given','סכום מקדמה שניתנה'], ['adv_left','יתרת מקדמה לקיזוז'], ['due_date','תאריך פרעון חשבון', 'date']] }
 ];
-// op: '+' adds, '-' deducts, '=' subtotal; group splits the table into readable blocks
-const SUM_ROWS = [
-  { key:'contract',  label:'סעיפי חוזה', op:'+', group:'עבודות' },
-  { key:'exc',       label:'חריגים', op:'+' },
-  { key:'adv_disc',  label:'קיזוז מקדמה/הנחה', op:'-' },
-  { key:'idx_base',  label:'סכום לחישוב התייקרויות', op:'=' },
-  { key:'idx',       label:'התייקרות', op:'+', group:'התייקרויות' },
-  { key:'with_idx',  label:'סכום כולל התייקרויות', op:'=' },
-  { key:'misc',      label:'עבודות שונות', op:'-', group:'קיזוזים וניכויים' },
-  { key:'elec',      label:'קיזוז חשמל', op:'-' },
-  { key:'safety',    label:'קנסות בטיחות', op:'-' },
-  { key:'fines',     label:'קנסות', op:'-' },
-  { key:'water',     label:'קיזוז מים', op:'-' },
-  { key:'elec_ops',  label:'רכש מפעילים חשמליים', op:'-' },
-  { key:'net',       label:'סכום לתשלום ללא מע"מ', op:'=', group:'סיכום', final:true },
-  { key:'vat',       label:'מע"מ', op:'+', vat:true },
-  { key:'gross',     label:'סה"כ לתשלום כולל מע"מ', op:'=', quiet:true }
+// op: '+' adds, '-' deducts, '=' subtotal
+const SUM_TEMPLATE = [
+  ['סעיפי חוזה','+'], ['חריגים','+'], ['קיזוז מקדמה/הנחה','-'], ['סכום לחישוב התייקרויות','='],
+  ['התייקרות','+'], ['סכום כולל התייקרויות','='],
+  ['עכבון','-'], ['סכום לאחר עכבון','='],
+  ['ביטוח','-'], ['עבודות שונות','-'], ['קיזוז חשמל','-'], ['קיזוז מים','-'], ['קנסות בטיחות','-'], ['קנסות','-'], ['רכש מפעילים חשמליים','-'],
+  ['סכום לתשלום ללא מע"מ','='], ['מע"מ','+'], ['סה"כ לתשלום כולל מע"מ','=']
+].map(([label, op]) => ({ label, op }));
+// block by label. A subtotal (=) closes the current block; an unrecognised deduction goes to קיזוזים, any other unrecognised row stays in the current block
+const SUM_GROUPS = [
+  [/מע"מ|לתשלום/, 'סיכום'],
+  [/עי?כבון/, 'עכבון'],
+  [/התייקרו/, 'התייקרויות'],
+  [/סעיפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
 function buildSummary(s, d){
-  const info = s.info || {}, rows = s.rows || {};
+  const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
+  const template = !(s.rows && s.rows.length) && !Object.keys(info).length;
+  const rows = template ? SUM_TEMPLATE : (s.rows || []);
   const dash = '<span class="missing">—</span>';
-  const amt = v => v === undefined || v === null || v === '' ? dash : money(v);
-  const cell = v => `<td class="num${n(v) < 0 ? ' neg' : ''}">${amt(v)}</td>`;
-  const infoHtml = SUM_INFO.map(g => `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
-    g.rows.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${info[k] !== undefined && info[k] !== '' ? (t === 'date' ? L(info[k]) : money(info[k])) : dash}</td></tr>`).join('')}</table></div>`).join('');
-  let body = '';
-  for(const r of SUM_ROWS){
-    if(r.group) body += `<tr class="sg"><td colspan="5">${r.group}</td></tr>`;
-    const v = rows[r.key] || {};
-    const label = r.vat ? `מע"מ (${s.vat_rate !== undefined ? L(qty(s.vat_rate, 2) + '%') : '<span class="missing">%</span>'})` : r.label;
-    const cls = r.final ? 'final' : r.quiet ? 'quiet' : r.op === '=' ? 'sub' : '';
-    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
+  const cell = v => `<td class="num${n(v) < 0 ? ' neg' : ''}">${has(v) ? money(v) : template ? dash : ''}</td>`;
+
+  const infoHtml = SUM_INFO.map(g => {
+    const rs = g.rows.filter(([k]) => template || has(info[k]));
+    return rs.length ? `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
+      rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${has(info[k]) ? (t === 'date' ? L(info[k]) : money(info[k])) : dash}</td></tr>`).join('')}</table></div>` : '';
+  }).join('');
+
+  let body = '', group = '';
+  for(const r of rows){
+    const known = (SUM_GROUPS.find(([re]) => re.test(r.label)) || [])[1];
+    const g = (r.op === '=' && group && known !== 'סיכום') ? group : known || (r.op === '-' ? 'קיזוזים וניכויים' : group || 'עבודות');
+    if(g !== group){ group = g; body += `<tr class="sg"><td colspan="5">${g}</td></tr>`; }
+    const vat = /^מע"מ/.test(r.label), net = /לתשלום.*(ללא|לפני) מע"מ/.test(r.label), gross = /כולל מע"מ/.test(r.label);
+    const label = vat ? `מע"מ${has(s.vat_rate) ? ` (${L(qty(s.vat_rate, 2) + '%')})` : template ? ' (<span class="missing">%</span>)' : ''}` : T(r.label);
+    const cls = net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '';
+    const op = OP_NAME[r.op] ? r.op : '';
+    body += `<tr class="${cls}"><td>${label}</td><td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>${cell(r.cur)}${vat && !has(r.cum) ? '<td></td><td></td>' : cell(r.cum) + cell(r.prev)}</tr>`;
   }
   return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
-  <div class="si">${infoHtml}</div>
+  ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
   <table class="grid sumt">
     <caption class="sr">טבלה מסכמת: סכום שוטף, מצטבר נוכחי ומצטבר קודם לכל רכיב</caption>
     <thead><tr><th scope="col">תיאור</th><th scope="col" style="width:7%"><span class="sr">פעולה</span></th><th scope="col" style="width:20%">סכום שוטף (₪)<span class="th2">בחשבון זה</span></th>
