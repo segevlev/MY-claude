@@ -117,15 +117,14 @@ button,input{font-family:inherit}
 .sumt th{font-size:9pt;vertical-align:bottom}
 .sumt .th2{display:block;font-weight:normal;font-size:7.6pt;color:#c9d4e3;margin-top:2px}
 .sumt td{padding:6px 9px}
-.sumt tbody tr:not(.sg):not(.sub):not(.final):nth-child(even) td{background:#fafbfc}
+.sumt tbody tr:not(.sg):not(.sub):not(.final):not(.quiet):nth-child(even) td{background:#fafbfc}
 .sumt tr.sg td{background:#fff;color:var(--navy);font-weight:bold;font-size:8.6pt;border-width:0 0 2px;border-bottom-color:var(--navy);padding:12px 4px 3px}
 .sumt tr.sub td{background:#e3e9f1;border-top:1.5px solid var(--navy)}
-.sumt tr.final td{font-size:11.5pt;padding:9px}
+.sumt tr.final td{font-size:12.5pt;padding:10px 9px}
 .sumt td.op{text-align:center;font-weight:bold;font-size:11pt;padding:4px 0}
 .sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
 .sumt tr.final td.op{color:var(--amber)}
-.sumt tr.info td{background:#fdf3e3;font-weight:bold;border-top:1.5px dashed var(--amber)}
-.sumt td.opi{color:#7a4e10}
+.sumt tr.quiet td{font-size:9pt;color:#55606f;background:#fff}
 .items{font-size:8.6pt}
 .items th{padding:5px 3px;font-size:8pt}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:8pt}
@@ -510,6 +509,7 @@ const SUM_INFO = [
 // op: '+' adds, '-' deducts, '=' subtotal; group splits the table into readable blocks
 const SUM_ROWS = [
   { key:'contract',  label:'סעיפי חוזה', op:'+', group:'עבודות' },
+  { key:'exc',       label:'חריגים', op:'+' },
   { key:'adv_disc',  label:'קיזוז מקדמה/הנחה', op:'-' },
   { key:'idx_base',  label:'סכום לחישוב התייקרויות', op:'=' },
   { key:'idx',       label:'התייקרות', op:'+', group:'התייקרויות' },
@@ -520,14 +520,11 @@ const SUM_ROWS = [
   { key:'fines',     label:'קנסות', op:'-' },
   { key:'water',     label:'קיזוז מים', op:'-' },
   { key:'elec_ops',  label:'רכש מפעילים חשמליים', op:'-' },
-  { key:'exc_price', label:'חריג במחיר חוזה', op:'+', group:'חריגים' },
-  { key:'exc_fixed', label:'חריגים במחיר קבוע', op:'+' },
-  { key:'exc_total', label:'סה"כ חריגים (לפני מע"מ)', op:'Σ', sum:['exc_price','exc_fixed'] },
-  { key:'net',       label:'סכום לתשלום ללא מע"מ', op:'=', group:'סיכום' },
+  { key:'net',       label:'סכום לתשלום ללא מע"מ', op:'=', group:'סיכום', final:true },
   { key:'vat',       label:'מע"מ', op:'+', vat:true },
-  { key:'gross',     label:'סה"כ לתשלום כולל מע"מ', op:'=', final:true }
+  { key:'gross',     label:'סה"כ לתשלום כולל מע"מ', op:'=', quiet:true }
 ];
-const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים', 'Σ':'סכימה לידיעה – אינה נכנסת לחישוב' };
+const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
 function buildSummary(s, d){
   const info = s.info || {}, rows = s.rows || {};
   const dash = '<span class="missing">—</span>';
@@ -538,11 +535,10 @@ function buildSummary(s, d){
   let body = '';
   for(const r of SUM_ROWS){
     if(r.group) body += `<tr class="sg"><td colspan="5">${r.group}</td></tr>`;
-    const v = r.sum ? Object.fromEntries(['cur','cum','prev'].map(c => {   // computed row: sum of the listed rows, per column
-      const xs = r.sum.map(k => (rows[k] || {})[c]); return [c, xs.every(x => x === undefined) ? undefined : xs.reduce((a, x) => a + n(x), 0)]; })) : rows[r.key] || {};
+    const v = rows[r.key] || {};
     const label = r.vat ? `מע"מ (${s.vat_rate !== undefined ? L(qty(s.vat_rate, 2) + '%') : '<span class="missing">%</span>'})` : r.label;
-    const cls = r.final ? 'final' : r.op === '=' ? 'sub' : r.sum ? 'info' : '';
-    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : r.sum ? 'i' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
+    const cls = r.final ? 'final' : r.quiet ? 'quiet' : r.op === '=' ? 'sub' : '';
+    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
   }
   return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <div class="si">${infoHtml}</div>
@@ -552,7 +548,7 @@ function buildSummary(s, d){
       <th scope="col" style="width:20%">מצטבר נוכחי (₪)<span class="th2">כולל חשבון זה</span></th><th scope="col" style="width:20%">מצטבר קודם (₪)<span class="th2">עד החשבון הקודם</span></th></tr></thead>
     <tbody>${body}</tbody>
   </table>
-  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים &nbsp;·&nbsp; Σ סכימה לידיעה (אינה נכנסת לחישוב)</div>`;
+  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
 }
 
 function render({ header, fin, items }){
@@ -596,8 +592,8 @@ function render({ header, fin, items }){
   </div>
   <div class="kpis">
     <div class="kpi"><div class="l">מצטבר בחשבון זה</div><div class="v num">₪ ${money(fin.cumulative||grand)}</div></div>
-    <div class="kpi"><div class="l">לתשלום (לפני מע"מ)</div><div class="v num">₪ ${money(fin.total_pay)}</div></div>
-    <div class="kpi main"><div class="l">סה"כ לתשלום כולל מע"מ</div><div class="v num">₪ ${money(fin.total_with_vat)}</div></div>
+    <div class="kpi main"><div class="l">לתשלום (לפני מע"מ)</div><div class="v num">₪ ${money(fin.total_pay)}</div></div>
+    <div class="kpi"><div class="l">סה"כ לתשלום כולל מע"מ</div><div class="v num">₪ ${money(fin.total_with_vat)}</div></div>
     <div class="kpi"><div class="l">ביצוע מתוך היקף חוזה ${L(money(fin.contract_scope)+' ₪')}</div><div class="v">${n(fin.exec_pct).toFixed(2)}%</div><div class="pbar"><span style="width:${pct}%"></span></div></div>
   </div>
   <div class="two">
