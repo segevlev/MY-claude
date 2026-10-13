@@ -124,6 +124,8 @@ button,input{font-family:inherit}
 .sumt td.op{text-align:center;font-weight:bold;font-size:11pt;padding:4px 0}
 .sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
 .sumt tr.final td.op{color:var(--amber)}
+.sumt tr.info td{background:#fdf3e3;font-weight:bold;border-top:1.5px dashed var(--amber)}
+.sumt td.opi{color:#7a4e10}
 .items{font-size:8.6pt}
 .items th{padding:5px 3px;font-size:8pt}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:8pt}
@@ -508,7 +510,6 @@ const SUM_INFO = [
 // op: '+' adds, '-' deducts, '=' subtotal; group splits the table into readable blocks
 const SUM_ROWS = [
   { key:'contract',  label:'סעיפי חוזה', op:'+', group:'עבודות' },
-  { key:'exc_price', label:'חריג במחיר חוזה', op:'+' },
   { key:'adv_disc',  label:'קיזוז מקדמה/הנחה', op:'-' },
   { key:'idx_base',  label:'סכום לחישוב התייקרויות', op:'=' },
   { key:'idx',       label:'התייקרות', op:'+', group:'התייקרויות' },
@@ -519,12 +520,14 @@ const SUM_ROWS = [
   { key:'fines',     label:'קנסות', op:'-' },
   { key:'water',     label:'קיזוז מים', op:'-' },
   { key:'elec_ops',  label:'רכש מפעילים חשמליים', op:'-' },
-  { key:'exc_fixed', label:'חריגים במחיר קבוע', op:'+', group:'חריגים' },
+  { key:'exc_price', label:'חריג במחיר חוזה', op:'+', group:'חריגים' },
+  { key:'exc_fixed', label:'חריגים במחיר קבוע', op:'+' },
+  { key:'exc_total', label:'סה"כ חריגים (לפני מע"מ)', op:'Σ', sum:['exc_price','exc_fixed'] },
   { key:'net',       label:'סכום לתשלום ללא מע"מ', op:'=', group:'סיכום' },
   { key:'vat',       label:'מע"מ', op:'+', vat:true },
   { key:'gross',     label:'סה"כ לתשלום כולל מע"מ', op:'=', final:true }
 ];
-const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
+const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים', 'Σ':'סכימה לידיעה – אינה נכנסת לחישוב' };
 function buildSummary(s, d){
   const info = s.info || {}, rows = s.rows || {};
   const dash = '<span class="missing">—</span>';
@@ -535,10 +538,11 @@ function buildSummary(s, d){
   let body = '';
   for(const r of SUM_ROWS){
     if(r.group) body += `<tr class="sg"><td colspan="5">${r.group}</td></tr>`;
-    const v = rows[r.key] || {};
+    const v = r.sum ? Object.fromEntries(['cur','cum','prev'].map(c => {   // computed row: sum of the listed rows, per column
+      const xs = r.sum.map(k => (rows[k] || {})[c]); return [c, xs.every(x => x === undefined) ? undefined : xs.reduce((a, x) => a + n(x), 0)]; })) : rows[r.key] || {};
     const label = r.vat ? `מע"מ (${s.vat_rate !== undefined ? L(qty(s.vat_rate, 2) + '%') : '<span class="missing">%</span>'})` : r.label;
-    const cls = r.final ? 'final' : r.op === '=' ? 'sub' : '';
-    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
+    const cls = r.final ? 'final' : r.op === '=' ? 'sub' : r.sum ? 'info' : '';
+    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : r.sum ? 'i' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
   }
   return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <div class="si">${infoHtml}</div>
@@ -548,7 +552,7 @@ function buildSummary(s, d){
       <th scope="col" style="width:20%">מצטבר נוכחי (₪)<span class="th2">כולל חשבון זה</span></th><th scope="col" style="width:20%">מצטבר קודם (₪)<span class="th2">עד החשבון הקודם</span></th></tr></thead>
     <tbody>${body}</tbody>
   </table>
-  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
+  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים &nbsp;·&nbsp; Σ סכימה לידיעה (אינה נכנסת לחישוב)</div>`;
 }
 
 function render({ header, fin, items }){
