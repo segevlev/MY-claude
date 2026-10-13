@@ -1,0 +1,26 @@
+# עיצוב חשבון חלקי (Partial Invoice Designer)
+
+Single-file web app (`app/index.html`) that takes a partial-invoice PDF for a subcontractor ("חשבון חלקי לקבלן משנה"), exported from the Electra ERP, and builds a designed, editable A4 document for download.
+
+## Running
+Open `app/index.html` in a browser. There is no build step and no server.
+It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
+
+## Flow
+1. **Upload**: drag and drop or pick a PDF (`takePdf`) → `pdfBuf`.
+2. **Read**: `readPages` uses pdf.js to extract text items per page (`str, x, y, w, dir`).
+3. **Parse**: `parseInvoice(pages)` is deterministic and coordinate-based. It returns `{ header:{company, doc, contractor}, fin, items }`:
+   - fixes RTL/LTR text-direction quirks (`fix`) and merges fragments on the same line;
+   - company block = top-right of page 1;
+   - doc / contractor fields come from label regexes, with order-agnostic fallbacks (`codeLike`, `dateNear`);
+   - items table: header columns are found by the "סעיף" and "תאור" headers. A role is mapped per column (code/desc/unit/cq/cum/pct/cur/price/total), and rows are anchored on code cells. Rows without a price become group names (`groups`);
+   - payment page: anchored on "עבודות לפי חוזה". Amounts aligned to the main column go to `payment_rows`, the others are side values (e.g. קיזוז חו"ג).
+4. **Render**: `render(data)` + `buildItems` (hierarchical code prefixes → מבנה/פרק/תת פרק headers and subtotals). The document is `contentEditable`.
+5. **Checks**: `runChecks` runs these validations: qty×price per line, sum of lines vs "מחיר כולל", payment math, VAT, execution %, missing fields, dates, and non-integer quantities in unit items.
+6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
+
+## Notes
+- The logo is stored via `window.storage` (the Claude-artifact API). The local fallback shim at the top of the script maps it to `localStorage`.
+- `window.__renderDemo(data)` is a test hook: it renders data without a PDF.
+- Hebrew UI, `dir="rtl"`. Numbers and Latin codes are wrapped LTR via `T()` / `L()` / `.num`.
+- Brand colours are CSS variables in `:root` (navy `#1f3a5f`, amber `#e8a33d`).

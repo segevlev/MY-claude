@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>עיצוב חשבון חלקי</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --navy:#1f3a5f; --amber:#e8a33d; --ink:#1d2633; --mute:#6b7686; --line:#d5dbe3; --soft:#f1f4f8; --bg:#e9edf2; --red:#a33a2c;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Assistant","Segoe UI",Arial,"Liberation Sans",sans-serif;color:var(--ink);background:var(--bg)}
+button,input{font-family:inherit}
+.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.num{direction:ltr;unicode-bidi:isolate;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ---------- app shell ---------- */
+.bar{background:var(--navy);color:#fff;padding:12px 22px;display:flex;align-items:center;gap:12px}
+.bar h1{margin:0;font-size:18px}
+.bar span{color:#c9d4e3;font-size:13px}
+.layout{display:flex;gap:20px;padding:20px;align-items:flex-start}
+.side{width:300px;flex-shrink:0;position:sticky;top:20px;display:flex;flex-direction:column;gap:14px}
+.box{background:#fff;border-radius:8px;padding:16px;border:1px solid var(--line)}
+.box h3{margin:0 0 10px;font-size:14px;color:var(--navy)}
+.drop{border:2px dashed #9aa5b4;border-radius:8px;padding:22px 12px;text-align:center;cursor:pointer;color:var(--mute);font-size:14px;transition:background .15s}
+.drop:hover,.drop.over{background:var(--soft);border-color:var(--navy);color:var(--navy)}
+.drop:focus-visible,.btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.drop strong{display:block;color:var(--navy);font-size:15px;margin-bottom:4px}
+.fname{margin-top:8px;font-size:13px;color:var(--navy);word-break:break-all}
+.btn{width:100%;padding:10px;border-radius:6px;border:1px solid var(--navy);background:#fff;color:var(--navy);font-weight:bold;font-size:14px;cursor:pointer;margin-top:8px}
+.btn.primary{background:var(--navy);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.small{font-size:12px;color:var(--mute);margin-top:6px;line-height:1.5}
+.logo-row{display:flex;gap:8px;align-items:center}
+.logo-row img{max-height:36px;max-width:90px;border:1px solid var(--line);border-radius:4px;padding:2px}
+.steps{list-style:none;margin:0;padding:0;font-size:13px}
+.steps li{padding:5px 0;display:flex;gap:8px;align-items:center;color:var(--mute)}
+.steps li::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid #9aa5b4;flex-shrink:0}
+.steps li.run{color:var(--navy);font-weight:bold}
+.steps li.run::before{border-color:var(--amber);border-top-color:transparent;animation:spin .8s linear infinite}
+.steps li.ok{color:var(--ink)} .steps li.ok::before{background:#2e7d4f;border-color:#2e7d4f}
+.steps li.err{color:var(--red)} .steps li.err::before{background:var(--red);border-color:var(--red)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.steps li.run::before{animation:none}}
+.warn{font-size:13px;margin:0;padding-right:16px;line-height:1.55}
+.warn li{margin-bottom:4px}
+.allok{font-size:13px;color:#2e7d4f}
+.okmsg{background:#eaf5ee;border:1px solid #2e7d4f;color:#1f5a38;border-radius:6px;padding:10px;font-size:13px;margin-top:10px;line-height:1.5}
+.okmsg a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
+#exMsg .error{margin-top:10px}
+.error{background:#fbeceb;border:1px solid var(--red);color:var(--red);border-radius:6px;padding:10px;font-size:13px}
+
+.main{flex:1;min-width:0;overflow-x:auto}
+.empty{background:#fff;border-radius:8px;border:1px solid var(--line);padding:60px 30px;text-align:center;color:var(--mute)}
+.empty b{display:block;font-size:18px;color:var(--navy);margin-bottom:8px}
+.paper{background:#fff;width:794px;margin:0 auto;padding:53px 49px;box-shadow:0 2px 14px rgba(31,58,95,.18)}
+
+/* ---------- document ---------- */
+#doc{width:695px;font-size:9.6pt;color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif}
+#doc [contenteditable]:focus{outline:1px dashed var(--amber)}
+#doc table{width:100%;border-collapse:collapse}
+.d-top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--navy);padding-bottom:10px;gap:14px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:54px;height:54px;background:var(--navy);border-radius:6px;position:relative;overflow:hidden;flex-shrink:0}
+.mark i{position:absolute;left:0;right:0;height:7px;background:var(--amber)}
+.mark i:nth-child(1){bottom:10px}.mark i:nth-child(2){bottom:22px;right:12px}.mark i:nth-child(3){bottom:34px;right:24px}
+.brand img{max-height:60px;max-width:180px}
+.bname{font-size:21pt;font-weight:bold;color:var(--navy);line-height:1.05}
+.bsub{font-size:9.5pt;color:var(--mute);margin-top:5px}
+.cdet{font-size:8.2pt;color:#3c4757;display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:2px}
+.cdet b{color:var(--mute);font-weight:normal}
+.cdet>span{justify-self:start;text-align:right}
+.d-title{margin:14px 0 12px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.d-title h2{font-size:15pt;margin:0}
+.tag{background:var(--amber);color:var(--navy);font-weight:bold;padding:4px 10px;border-radius:3px;font-size:10pt;white-space:nowrap}
+#doc h4{font-size:10.5pt;color:var(--navy);margin:14px 0 6px;padding-right:7px;border-right:4px solid var(--amber)}
+.two{display:flex;gap:12px}.two>div{flex:1;min-width:0}
+.kv td{border:1px solid var(--line);padding:4px 8px}
+.kv td:first-child{background:var(--soft);color:#55606f;width:40%;white-space:nowrap}
+.kv td:last-child{font-weight:bold}
+.missing{color:#b0b8c4;font-weight:normal;font-style:italic}
+.exporting .missing{color:transparent}
+.kpis{display:flex;gap:8px;margin-top:14px}
+.kpi{flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px}
+.kpi .l{font-size:8pt;color:var(--mute)}
+.kpi .v{font-size:13pt;font-weight:bold;color:var(--navy);margin-top:3px;text-align:right}
+.kpi.main{background:var(--navy);border-color:var(--navy)}
+.kpi.main .l{color:#c9d4e3}.kpi.main .v{color:#fff}
+.pbar{height:5px;background:#e3e8ef;border-radius:3px;margin-top:5px}
+.pbar span{display:block;height:100%;background:var(--amber);border-radius:3px}
+.grid th{background:var(--navy);color:#fff;font-weight:bold;padding:6px;border:1px solid var(--navy);font-size:8.5pt}
+.grid td{border:1px solid var(--line);padding:4px 7px;vertical-align:top}
+.grid .neg{color:var(--red)}
+.grid tr.sub td{background:var(--soft);font-weight:bold}
+.grid tr.grand td{background:#fbeccf;font-weight:bold;font-size:10.5pt;border-top:2px solid var(--navy)}
+.grid tr.final td{background:var(--navy);color:#fff;font-weight:bold;font-size:11pt}
+.note{margin-top:12px;padding:8px 12px;background:#fdf3e3;border:1px solid var(--amber);border-radius:4px;font-weight:bold;color:#7a4e10;text-align:center}
+.sign{display:flex;gap:12px;margin-top:16px}
+.sign div{flex:1;border:1px solid var(--line);border-radius:4px;padding:8px 10px 34px;font-size:8.5pt;color:#55606f;position:relative}
+.sign div::after{content:"שם / חתימה / תאריך";position:absolute;bottom:6px;right:10px;left:10px;border-top:1px dashed #9aa5b4;padding-top:3px;font-size:7.5pt;color:#9aa5b4}
+.html2pdf__page-break{height:0;margin:40px -49px;border-top:2px dashed #b8c1cd}
+.exporting .html2pdf__page-break{margin:0;border:0}
+.mini{display:flex;justify-content:space-between;border-bottom:2px solid var(--navy);padding-bottom:6px;margin-bottom:8px;font-size:8.5pt;color:#55606f}
+.mini b{color:var(--navy);font-size:11pt}
+.items{font-size:8.6pt}
+.items th{padding:5px 3px;font-size:8pt}
+.items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:8pt}
+.items td.c{text-align:center}
+.items td.num,.items td.c{padding:5px 4px;font-size:8.2pt}
+.items tr.s1 td{background:var(--navy);color:#fff;font-weight:bold}
+.items tr.s2 td{background:#c9d4e3;font-weight:bold}
+.items tr.s3 td{background:#eef2f7;font-weight:bold;color:var(--navy)}
+.items tr.t3 td{font-weight:bold;background:#fafbfc}
+.items tr.t2 td{font-weight:bold;background:#eef2f7}
+.items tr.t1 td{font-weight:bold;background:#c9d4e3;border-bottom:2px solid var(--navy)}
+.items tr.tot td{background:var(--navy);color:#fff;font-weight:bold;font-size:10.5pt}
+.items .sm{color:var(--mute);font-size:7.8pt;display:block;margin-top:2px;line-height:1.35}
+
+@media (max-width:900px){.layout{flex-direction:column}.side{width:100%;position:static}}
+@media print{
+  @page{size:A4;margin:14mm 13mm}
+  body{background:#fff}.bar,.side{display:none}.layout{padding:0}.paper{box-shadow:none;padding:0;width:auto}
+  .html2pdf__page-break{margin:0;border:0;page-break-before:always}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="bar"><h1>עיצוב חשבון חלקי</h1><span>מעלים את קובץ ה-PDF שהופק מהמערכת ומקבלים מסמך מעוצב להורדה</span></div>
+
+<div class="layout">
+  <aside class="side">
+    <div class="box">
+      <h3>1. קובץ החשבון</h3>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="בחירת קובץ PDF">
+        <strong>גררו לכאן קובץ PDF</strong>או לחצו לבחירה
+      </div>
+      <input type="file" id="file" accept="application/pdf" hidden>
+      <div class="fname" id="fname"></div>
+      <button class="btn primary" id="go" disabled>עבד את החשבון</button>
+    </div>
+
+    <div class="box">
+      <h3>2. לוגו (לא חובה)</h3>
+      <div class="logo-row"><img id="logoPrev" hidden alt="לוגו"><button class="btn" id="logoBtn" style="margin:0">בחירת תמונת לוגו</button></div>
+      <input type="file" id="logoFile" accept="image/*" hidden>
+      <button class="btn" id="logoClear" hidden style="border-color:var(--line);color:var(--mute)">הסר לוגו</button>
+      <div class="small">הלוגו נשמר לפעם הבאה. בלעדיו מוצג סמל גרפי עם שם החברה.</div>
+    </div>
+
+    <div class="box" id="statusBox" hidden>
+      <h3>התקדמות</h3>
+      <ul class="steps" id="steps"></ul>
+      <div id="err"></div>
+    </div>
+
+    <div class="box" id="checkBox" hidden>
+      <h3>בדיקות תקינות</h3>
+      <div id="checks"></div>
+    </div>
+
+    <div class="box" id="dbgBox" hidden>
+      <details><summary style="cursor:pointer;font-size:13px;color:var(--navy);font-weight:bold">הטקסט שנקרא מהקובץ</summary>
+      <div class="small">אם חסרים נתונים, העתיקו את הטקסט הזה ושלחו לי.</div>
+      <textarea id="dbg" readonly style="width:100%;height:180px;font-size:11px;direction:rtl;margin-top:6px"></textarea></details>
+    </div>
+
+    <div class="box" id="exportBox" hidden>
+      <h3>3. הורדה</h3>
+      <button class="btn primary" id="dl">הורד PDF</button>
+      <button class="btn" id="pr">הדפס / שמור כ-PDF מהדפדפן</button>
+      <div id="exMsg"></div>
+      <div class="small">אפשר ללחוץ על כל טקסט בתצוגה ולתקן אותו לפני ההורדה.</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="empty" id="empty"><b>עוד לא נטען חשבון</b>בחרו קובץ PDF של חשבון חלקי לקבלן משנה ולחצו "עבד את החשבון".</div>
+    <div class="paper" id="paper" hidden><div id="doc"></div></div>
+  </main>
+</div>
+
+<script>
+/* storage fallback: outside Claude artifacts window.storage is missing – back it with localStorage */
+if(!window.storage) window.storage = {
+  get: async k => { const v = localStorage.getItem(k); return v === null ? null : { key:k, value:v }; },
+  set: async (k, v) => { localStorage.setItem(k, v); return { key:k, value:v }; },
+  delete: async k => { localStorage.removeItem(k); return { key:k, deleted:true }; }
+};
+const $ = id => document.getElementById(id);
+let pdfBuf = null, pdfName = '', logoData = null, lastData = null;
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const T = s => { const str = String(s ?? ''); let out = '', last = 0;
+  str.replace(/[A-Za-z0-9][A-Za-z0-9_.\/×:%\-]*(?: +[A-Za-z][A-Za-z0-9_.\-]*)*/g, (m, i) => { out += esc(str.slice(last, i)) + `<span class="ltr">${esc(m)}</span>`; last = i + m.length; return m; });
+  return out + esc(str.slice(last)); };
+const L = s => s ? `<span class="ltr">${esc(s)}</span>` : '';
+const n = v => { const x = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/,/g,'')); return isFinite(x) ? x : 0; };
+const money = v => n(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const qty = (v,d=3) => n(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const parseDate = s => { const m = String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(!m) return null; let y=+m[3]; if(y<100) y+=2000; return new Date(y, m[2]-1, +m[1]); };
+
+/* ---------- file pick ---------- */
+const drop = $('drop'), file = $('file');
+drop.onclick = () => file.click();
+drop.onkeydown = e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();} };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); if(e.dataTransfer.files[0]) takePdf(e.dataTransfer.files[0]); };
+file.onchange = () => file.files[0] && takePdf(file.files[0]);
+
+function readBuf(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('קריאת הקובץ נכשלה')); r.readAsArrayBuffer(f); }); }
+function readURL(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); }); }
+
+async function takePdf(f){
+  if(f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)){ $('fname').textContent = 'הקובץ שנבחר אינו PDF. בחרו קובץ PDF.'; return; }
+  pdfBuf = await readBuf(f); pdfName = f.name;
+  $('fname').textContent = f.name; $('go').disabled = false;
+}
+
+/* ---------- logo ---------- */
+$('logoBtn').onclick = () => $('logoFile').click();
+$('logoFile').onchange = async () => { const f=$('logoFile').files[0]; if(!f) return; setLogo(await readURL(f), true); };
+$('logoClear').onclick = () => setLogo(null, true);
+async function setLogo(d, save){
+  logoData = d;
+  $('logoPrev').hidden = !d; if(d) $('logoPrev').src = d;
+  $('logoClear').hidden = !d;
+  if(save){ try{ if(d) await window.storage.set('invoice-logo', d, false); else await window.storage.delete('invoice-logo', false); }catch(e){ console.log('storage', e); } }
+  if(lastData) render(lastData);
+}
+(async()=>{ try{ const r = await window.storage.get('invoice-logo', false); if(r && r.value) setLogo(r.value, false); }catch(e){} })();
+
+/* ===== deterministic parser for ERP partial-invoice PDFs ===== */
+function parseInvoice(pages){
+  const HEB = /[\u0590-\u05FF]/;
+  const num = s => { const m = String(s).replace(/,/g,'').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; };
+  const isNum = s => /^-?[\d,]+(\.\d+)?%?$/.test(s.trim());
+  const fixParens = s => { const i = s.search(/[()]/); return i >= 0 && s[i] === ')' ? s.replace(/[()]/g, c => c === '(' ? ')' : '(') : s; };
+  // normalise text direction quirks
+  const fix = (s, dir) => {
+    s = s.replace(/\s+/g,' ').trim();
+    if(dir !== 'rtl' && HEB.test(s) && / /.test(s)) s = s.split(' ').reverse().join(' ');
+    s = s.replace(/(^|\s):([\u0590-\u05FF][^\s]*)/g, '$1$2:');           // ":טלפון" -> "טלפון:"
+    return s;
+  };
+  // 1. normalise each raw item, 2. merge fragments that sit side by side on the same line
+  const P = pages.map((pg, pi) => {
+    const raw = pg.items.filter(i => i.str && i.str.trim()).map(i => ({ s: fix(i.str, i.dir), x: i.x, y: i.y, w: i.w, r: i.x + i.w }));
+    raw.sort((a,b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for(const it of raw){ const l = lines.find(L => Math.abs(L.y - it.y) < 1.6); if(l) l.items.push(it); else lines.push({ y: it.y, items: [it] }); }
+    const out = [];
+    for(const l of lines){
+      l.items.sort((a,b) => a.x - b.x);
+      let cur = null;
+      for(const it of l.items){
+        const gap = cur ? it.x - cur.r : 99, last = cur && cur.parts[cur.parts.length-1];
+        const numSide = cur && HEB.test(last.s) && /^\d{2}(\.\d+)*$/.test(it.s);   // desc text never glues to the code column on its right
+        const label = cur && (/:$/.test(it.s) || /:$/.test(last.s) || /^:/.test(it.s) || /^:/.test(last.s));
+        if(cur && gap > -2 && (gap < (numSide && !label ? 2.6 : 4.6) || (label && gap < 7))){ cur.parts.push(it); cur.r = Math.max(cur.r, it.r); }
+        else { cur = { parts:[it], x: it.x, r: it.r, y: it.y }; out.push(cur); }
+      }
+    }
+    return out.map(ch => {
+      const heb = ch.parts.some(p => HEB.test(p.s));
+      let s = (heb ? [...ch.parts].sort((a,b) => b.x - a.x) : ch.parts).map(p => p.s).join(' ').replace(/\s+/g,' ').trim();
+      s = s.replace(/(^|\s):([\u0590-\u05FF][^\s]*)/g, '$1$2:').replace(/\s+:/g, ':').replace(/:(?=\S)/g, ': ').replace(/:\s+$/, ':');
+      s = fixParens(s);
+      return { s, x: ch.x, y: ch.y, w: ch.r - ch.x, dir: heb ? 'rtl' : 'ltr', p: pi, r: ch.r, c: (ch.x + ch.r)/2 };
+    });
+  });
+  const all = P.flat();
+  const find = re => all.find(i => re.test(i.s));
+  const val = (re) => { const it = find(re); if(!it) return ''; const m = it.s.match(re); return (m && m[1] !== undefined ? m[1] : '').trim(); };
+  const tidy = s => fixParens(String(s||'')).replace(/''/g,'"').replace(/""/g,'"').replace(/([A-Za-z0-9])([\u05D0-\u05EA])/g,'$1 $2').replace(/([\u05D0-\u05EA]{2,})(\d)/g,'$1 $2').replace(/\s+/g,' ').trim();
+
+  /* ---- company block: top-right of page 1 ---- */
+  const p1 = P[0] || [];
+  const topY = Math.max(...p1.map(i => i.y));
+  const cblock = p1.filter(i => i.x > 300 && i.y > topY - 110).sort((a,b) => b.y - a.y || b.x - a.x);
+  const lines = []; for(const it of cblock){ const l = lines.find(L => Math.abs(L.y - it.y) < 2); if(l) l.parts.push(it); else lines.push({ y: it.y, parts: [it] }); }
+  const ltxt = lines.map(l => l.parts.sort((a,b) => b.x - a.x).map(p => p.s).join(' '));
+  const company = { name: (ltxt[0]||'').replace(/בעמ$/, 'בע"מ'), branch:'', address:'', city_zip:'', po_box:'', phone:'', email:'', vat_id:'', deductions_file:'' };
+  const free = [];
+  for(const t of ltxt.slice(1)){
+    let m;
+    if((m = t.match(/סניף:?\s*(.+)/))) company.branch = 'סניף ' + m[1];
+    else if((m = t.match(/ת\.?ד\.?:?\s*(\d+)/))) company.po_box = m[1];
+    else if((m = t.match(/טלפון:?\s*([\d-]+)/))) company.phone = m[1];
+    else if((m = t.match(/עוסק מורשה:?\s*(\d+)/))) company.vat_id = m[1];
+    else if((m = t.match(/ניכויים:?\s*(\d+)/))) company.deductions_file = m[1];
+    else if(/מע"מ|:/.test(t)) {}
+    else free.push(t);
+  }
+  company.address = free[0] || ''; company.city_zip = free[1] || '';
+  const em = all.find(i => /[\w.-]+@[\w.-]+/.test(i.s)); if(em) company.email = em.s.match(/[\w.-]+@[\w.-]+/)[0];
+  if(!company.branch) company.branch = '';
+
+  /* ---- document / contractor ---- */
+  const t1 = val(/חשבון חלקי לקבלן משנה(.*)/);
+  const doc = {
+    seq: (t1.match(/מס'?\s*(\d+)/)||[])[1] || val(/חשבון חלקי מספר\s*-?\s*(\d+)/),
+    month: (t1.match(/(\d{2}\/\d{2})/)||[])[1] || val(/חודש ביצוע:?\s*(\d{2}\/\d{2})/),
+    date: val(/^תאריך:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/),
+    project_name: '', project_code: '', contract_code: '', account_code: '',
+    payment_terms: val(/תנאי תשלום:?\s*(.+)/), payment_date: val(/תאריך תשלום מחושב:?\s*([\d\/]+)/)
+  };
+  const pj = find(/פרו?ייקט/); 
+  for(const it of all.filter(i => /פרו?ייקט/.test(i.s))){
+    const m = it.s.match(/([A-Z]{2}\d{6,})\s*-\s*(.+)/); if(m){ doc.project_code = m[1]; doc.project_name = m[2].trim(); break; }
+    const m2 = it.s.match(/([A-Z]{2}\d{6,})/); if(m2 && !doc.project_code) doc.project_code = m2[1];
+  }
+  doc.contract_code = val(/חוזה:?\s*([A-Z]{2}\d{6,})/) || doc.project_code;
+  doc.account_code = val(/(?:חשבון חלקי|מספר פנימי):?\s*([A-Z]{2}\d{6,})/);
+
+  // order-agnostic fallbacks (some PDF readers return mixed text in visual order)
+  const codeLike = pre => { for(const i of all){ let m = i.s.match(new RegExp(pre + '\\d{6,}')); if(m) return m[0]; m = i.s.match(new RegExp('(\\d{6,})' + pre)); if(m) return pre + m[1]; } return ''; };
+  const dateNear = re => { const it = all.find(i => re.test(i.s) && /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(i.s)); return it ? it.s.match(/\d{1,2}\/\d{1,2}\/\d{2,4}/)[0] : ''; };
+  if(!doc.account_code) doc.account_code = codeLike('PC');
+  if(!doc.project_code) doc.project_code = codeLike('CO');
+  if(!doc.contract_code) doc.contract_code = doc.project_code;
+  if(!doc.payment_date) doc.payment_date = dateNear(/מחושב/);
+  if(!doc.date) doc.date = dateNear(/^\s*תאריך(?!.*תשלום)|תאריך:?\s*$|^[\d\/\s]+:?תאריך/);
+  if(!doc.month) doc.month = (all.map(i => i.s.match(/ביצוע:?\s*(\d{2}\/\d{2})|(\d{2}\/\d{2}):?\s*ביצוע/)).find(Boolean) || []).slice(1).find(Boolean) || '';
+  if(!doc.project_name){ const it = all.find(i => /פרו?ייקט/.test(i.s) && /[\u05D0-\u05EA]{3,}.*-/.test(i.s)); if(it) doc.project_name = it.s.replace(/הפרו?ייקט:?|[A-Z]{2}\d{6,}|\d{6,}[A-Z]{2}|:/g,'').replace(/^\s*-\s*|\s*-\s*$/g,'').trim(); }
+  if(!doc.payment_terms){ const it = all.find(i => /שוטף/.test(i.s)); if(it) doc.payment_terms = (it.s.match(/שוטף\s*\+?\s*\d*|\d+\s*\+\s*שוטף/)||[''])[0].trim(); }
+
+  const contractor = { name: val(/שם קבלן:?\s*(.+)/), electra_no: val(/מספר קבלן באלקטרה:?\s*(\d+)/), address:'', phone: val(/טלפון:?\s*([\d-]{9,})/), fax: val(/פקס:?\s*([\d-]{9,})/) };
+  const sup = find(/^פרטי הספק/);
+  if(sup){
+    const blk = P[sup.p].filter(i => i.x > 300 && i.y < sup.y && i.y > sup.y - 50 && !/טלפון|פקס|^,$/.test(i.s)).sort((a,b) => b.y - a.y);
+    if(blk[0] && blk[0].s.length >= contractor.name.length) contractor.name = blk[0].s;
+    contractor.address = blk.slice(1, 3).map(i => i.s).join(', ');
+    const ph = P[sup.p].filter(i => /טלפון/.test(i.s))[0]; if(ph) contractor.phone = (ph.s.match(/טלפון:?\s*([\d-]{9,})/)||['',''])[1];
+    const fx = P[sup.p].filter(i => /פקס/.test(i.s))[0]; if(fx) contractor.fax = (fx.s.match(/פקס:?\s*([\d-]{9,})/)||['',''])[1];
+  }
+
+  /* ---- items table ---- */
+  const groups = {}, items = []; let grand = 0;
+  for(const pg of P){
+    const hDesc = pg.find(i => i.s === 'תאור' || i.s === 'תיאור'); const hCode = pg.find(i => i.s === 'סעיף');
+    if(!hDesc || !hCode) continue;
+    // header columns: cluster header pieces by horizontal overlap
+    const hdr = pg.filter(i => Math.abs(i.y - hDesc.y) < 9).sort((a,b) => a.x - b.x);
+    const cols = [];
+    for(const h of hdr){ const c = cols.find(c => h.x < c.r - 1 && h.r > c.x + 1); if(c){ c.x = Math.min(c.x,h.x); c.r = Math.max(c.r,h.r); c.t += ' ' + h.s; } else cols.push({ x:h.x, r:h.r, t:h.s }); }
+    cols.forEach(c => c.c = (c.x + c.r)/2);
+    const role = t => /סעיף/.test(t) ? 'code' : /תי?אור/.test(t) ? 'desc' : /מחיר/.test(t) ? 'price' : /חוזה/.test(t) ? 'cq' : /מצטברת/.test(t) ? 'cum' : /תשלום/.test(t) ? 'pct' : /נוכחית/.test(t) ? 'cur' : /מצטבר|סה"כ/.test(t) ? 'total' : /יחידה/.test(t) ? 'unit' : null;
+    cols.forEach(c => c.role = role(c.t));
+    const C = Object.fromEntries(cols.filter(c => c.role).map(c => [c.role, c]));
+    if(!C.code || !C.desc) continue;
+    const descMin = C.unit ? (C.unit.c + C.desc.c)/2 : C.desc.x - 150;
+    const numCols = cols.filter(c => c.role && !['code','desc'].includes(c.role));
+    const endItem = pg.find(i => /^מחיר כולל/.test(i.s));
+    if(endItem){ const g = pg.find(i => Math.abs(i.y - endItem.y) < 3 && /\d/.test(i.s)); if(g) grand = num(g.s); }
+    const body = pg.filter(i => i.y < hDesc.y - 8 && (!endItem || i.y > endItem.y + 3) && i.s !== 'שח');
+    const codes = body.filter(i => i.x > Math.max(C.desc.c, C.code.x - 30) && /^\d+(\.\d+)*$/.test(i.s)).sort((a,b) => b.y - a.y);
+    const rows = codes.map(c => ({ code: c.s, y: c.y, top: c.y, desc: [], unit: '', v: {} }));
+    if(!rows.length) continue;
+    const nearest = (y, key) => rows.reduce((b, r) => Math.abs(r[key] - y) < Math.abs(b[key] - y) ? r : b);
+    const rest = body.filter(i => !codes.includes(i));
+    const numeric = [];
+    for(const it of rest){
+      if((!isNum(it.s) && it.r > descMin) || (isNum(it.s) && it.c > descMin)){ const r = nearest(it.y, 'y'); r.desc.push(it); r.top = Math.max(r.top, it.y); }
+      else if(!isNum(it.s)){ const r = nearest(it.y, 'y'); r.unit = it.s; }
+      else numeric.push(it);
+    }
+    for(const it of numeric){
+      const col = numCols.reduce((b, c) => Math.abs(c.c - it.c) < Math.abs(b.c - it.c) ? c : b);
+      const r = nearest(it.y, 'top'); r.v[col.role] = num(it.s);
+    }
+    for(const r of rows){
+      const dl = []; r.desc.sort((a,b) => b.y - a.y || b.x - a.x).forEach(d => { const l = dl.find(L => Math.abs(L.y - d.y) < 1.6); if(l) l.t += ' ' + d.s; else dl.push({ y: d.y, t: d.s }); });
+      const dlt = dl.map(l => l.t);
+      const text = tidy(dlt.join(' '));
+      if(/סה"כ ל/.test(text) && r.v.price === undefined) continue;   // subtotal row – recomputed later
+      if(r.v.price === undefined){ if(!groups[r.code]) groups[r.code] = text; continue; }
+      let title = text, detail = '';
+      if(dlt.length >= 3 || (dlt.length === 2 && text.length > 140)){ title = tidy(dlt[0]); detail = tidy(dlt.slice(1).join(' ')); }
+      items.push({ code:r.code, title, detail, unit:r.unit, cq:r.v.cq||0, cum:r.v.cum||0, pct:r.v.pct||0, cur:r.v.cur||0, price:r.v.price||0, total: r.v.total ?? (r.v.cum||0)*(r.v.price||0) });
+    }
+  }
+
+  /* ---- payment page ---- */
+  const fin = { groups, item_count: items.length, grand_total: grand, payment_rows: [], chg_offset: 0, cumulative: 0, total_pay: 0, vat: 0, total_with_vat: 0, contract_scope: 0, exec_pct: 0, disclaimer: '' };
+  const anchor = find(/^עבודות לפי חוזה/);
+  if(anchor){
+    const pg = P[anchor.p];
+    const amts = pg.filter(i => isNum(i.s) && i.x < anchor.x);
+    const a0 = amts.find(i => Math.abs(i.y - anchor.y) < 3); const right = a0 ? a0.r : 0;
+    const main = [], side = [];
+    for(const a of amts.sort((p,q) => q.y - p.y)){
+      const labs = pg.filter(i => HEB.test(i.s) && Math.abs(i.y - a.y) < 3 && i.x > a.r && !amts.some(o => o !== a && Math.abs(o.y - a.y) < 3 && o.x > a.r && o.x < i.x)).sort((p,q) => q.x - p.x);
+      if(!labs.length) continue;
+      const label = tidy(labs.map(l => l.s).join(' ')).replace(/\s*\(\s*/g,' (').replace(/\s*\)/g,')').trim();
+      (Math.abs(a.r - right) < 15 ? main : side).push({ label, amount: num(a.s) });
+    }
+    fin.payment_rows = main;
+    const g = (arr, re) => (arr.find(r => re.test(r.label)) || {}).amount || 0;
+    fin.cumulative = g(main, /מצטבר בחשבון זה/);
+    fin.total_pay = g(main, /^סה"כ לתשלום/);
+    fin.vat = g(main, /^מע"מ/);
+    fin.total_with_vat = g(main, /כולל מע"מ/);
+    fin.chg_offset = g(side, /קיזוז חו"ג מצטבר/);
+  }
+  fin.contract_scope = num(val(/הקף חוזה:?\s*([\d,.]+)/));
+  fin.exec_pct = num(val(/%\s*ביצוע:?\s*([\d.]+)/) || val(/ביצוע\s*%:?\s*([\d.]+)/));
+  const dis = find(/אינו מהווה|מוקלד/); if(dis) fin.disclaimer = dis.s;
+
+  if(!items.length) throw new Error('לא נמצאה טבלת סעיפים בקובץ. ודאו שזה חשבון חלקי שהופק מהמערכת (ולא סריקה).');
+  return { header: { company, doc, contractor }, fin, items };
+}
+
+/* ---------- pipeline ---------- */
+function setSteps(list){ $('steps').innerHTML = list.map((s,i)=>`<li id="st${i}">${esc(s)}</li>`).join(''); }
+function step(i, cls, txt){ const el=$('st'+i); if(!el) return; el.className = cls; if(txt) el.textContent = txt; }
+
+async function readPages(buf){
+  if(typeof pdfjsLib === 'undefined') throw new Error('רכיב קריאת ה-PDF לא נטען. בדקו חיבור לאינטרנט ורעננו את הדף');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+  const pages = [];
+  for(let p=1; p<=doc.numPages; p++){
+    const tc = await (await doc.getPage(p)).getTextContent();
+    pages.push({ items: tc.items.filter(i => 'str' in i).map(i => ({ str:i.str, x:i.transform[4], y:i.transform[5], w:i.width, dir:i.dir })) });
+  }
+  return pages;
+}
+
+$('go').onclick = async () => {
+  if(!pdfBuf) return;
+  $('go').disabled = true; $('err').innerHTML=''; $('statusBox').hidden=false; $('checkBox').hidden=true; $('exportBox').hidden=true; exMsg('');
+  setSteps(['קריאת הקובץ','זיהוי פרטי החשבון, הסעיפים והתשלום','בניית המסמך המעוצב']);
+  try{
+    step(0,'run'); const pages = await readPages(pdfBuf);
+    $('dbg').value = 'pdf.js ' + (pdfjsLib.version||'') + '\n' + pages.map((pg,i) => '=== עמוד ' + (i+1) + '\n' + pg.items.filter(t=>t.str.trim()).map(t => `${Math.round(t.y)} ${Math.round(t.x)} ${Math.round(t.w)} ${t.dir} | ${t.str}`).join('\n')).join('\n');
+    $('dbgBox').hidden = false; step(0,'ok',`קריאת הקובץ (${pages.length} עמודים)`);
+    step(1,'run'); const data = parseInvoice(pages); step(1,'ok',`זיהוי הנתונים (${data.items.length} סעיפים)`);
+    step(2,'run'); lastData = data; render(data); runChecks(data); step(2,'ok');
+    $('exportBox').hidden = false;
+  }catch(e){
+    document.querySelectorAll('#steps li.run').forEach(li=>li.className='err');
+    $('err').innerHTML = `<div class="error">העיבוד נעצר: ${esc(e.message)}.</div>`;
+    console.error(e);
+  }finally{ $('go').disabled = false; }
+};
+
+/* ---------- render ---------- */
+const LEVEL = ['', 'מבנה', 'פרק', 'תת פרק'];
+function buildItems(items, groups){
+  let rows = '', stack = [], grand = 0; const summary = [];
+  const close = () => {
+    const g = stack.pop(), d = stack.length+1, cls = 't'+Math.min(d,3);
+    rows += `<tr class="${cls}"><td></td><td colspan="7">סה"כ ל${LEVEL[Math.min(d,3)]} ${L(g.code)}: ${esc(g.name)}</td><td class="num">${money(g.total)}</td></tr>`;
+    if(d <= 2) summary.push({ level:d, code:g.code, name:g.name, total:g.total });
+  };
+  for(const it of items){
+    const parts = it.code.split('.'), pref = [];
+    for(let i=1;i<parts.length;i++) pref.push(parts.slice(0,i).join('.'));
+    let j = 0; while(j < stack.length && j < pref.length && stack[j].code === pref[j]) j++;
+    while(stack.length > j) close();
+    for(let i=j;i<pref.length;i++){
+      const name = groups[pref[i]] || '';
+      stack.push({ code:pref[i], name, total:0 });
+      rows += `<tr class="s${Math.min(i+1,3)}"><td class="code">${esc(pref[i])}</td><td colspan="8">${esc(name)}</td></tr>`;
+    }
+    rows += `<tr><td class="code">${esc(it.code)}</td><td>${T(it.title)}${it.detail?`<span class="sm">${T(it.detail)}</span>`:''}</td>
+      <td class="c">${esc(it.unit)}</td><td class="num">${qty(it.cq,2)}</td><td class="num">${qty(it.cum)}</td><td class="num">${n(it.pct)}%</td>
+      <td class="num">${qty(it.cur)}</td><td class="num">${money(it.price)}</td><td class="num">${money(it.total)}</td></tr>`;
+    stack.forEach(g => g.total += it.total); grand += it.total;
+  }
+  while(stack.length) close();
+  rows += `<tr class="tot"><td></td><td colspan="7">מחיר כולל</td><td class="num">${money(grand)}</td></tr>`;
+  return { rows, summary, grand };
+}
+
+function render({ header, fin, items }){
+  const c = header.company||{}, d = header.doc||{}, k = header.contractor||{};
+  const { rows, summary, grand } = buildItems(items, fin.groups||{});
+  const pct = Math.max(0, Math.min(100, n(fin.exec_pct)));
+  const kv = arr => arr.map(r=>`<tr><td>${r[0]}</td><td>${r[1] || '<span class="missing">לא זוהה – לחצו להשלמה</span>'}</td></tr>`).join('');
+  const cd = arr => arr.filter(r=>r[1]).map(r=>`<b>${r[0]}</b><span>${r[1]}</span>`).join('');
+
+  const sumRows = summary.map(s => s.level===1
+      ? `<tr class="sub"><td>${LEVEL[1]} ${L(s.code)} – ${esc(s.name)}</td><td class="num">${money(s.total)}</td></tr>`
+      : `<tr><td>${L(s.code)} ${esc(s.name)}</td><td class="num">${money(s.total)}</td></tr>`).join('');
+
+  const pr = (fin.payment_rows||[]);
+  const payRows = pr.map((r,i) => {
+    const last = i === pr.length-1, lbl = r.label||'';
+    const cls = last ? 'final' : (/סה"כ|מצטבר בחשבון זה/.test(lbl) ? 'sub' : '');
+    return `<tr class="${cls}"><td>${T(lbl)}</td><td class="num ${n(r.amount)<0&&!last?'neg':''}">${money(r.amount)}</td></tr>`;
+  }).join('') + (n(fin.chg_offset) ? `<tr><td>קיזוז חו"ג מצטבר</td><td class="num neg">${money(fin.chg_offset)}</td></tr>` : '');
+
+  const brand = logoData
+    ? `<div class="brand"><img src="${logoData}" alt=""><div><div class="bname" style="font-size:16pt">${esc(c.name)}</div><div class="bsub">${esc(c.branch)}</div></div></div>`
+    : `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><div class="bname">${esc(c.name)}</div><div class="bsub">${esc(c.branch)}</div></div></div>`;
+
+  $('doc').innerHTML = `
+  <div class="d-top">${brand}
+    <div class="cdet">${cd([
+      ['כתובת', T([c.address, c.city_zip].filter(Boolean).join(', '))],
+      ['ת.ד.', L(c.po_box)], ['טלפון', L(c.phone)], ['דוא"ל', L(c.email)],
+      ['עוסק מורשה', L(c.vat_id)], ['תיק ניכויים', L(c.deductions_file)] ])}</div>
+  </div>
+  <div class="d-title"><h2>חשבון חלקי לקבלן משנה מס' ${esc(d.seq)}</h2><span class="tag">חודש ביצוע ${L(d.month)}</span></div>
+  <div class="two">
+    <div><h4>פרטי החשבון</h4><table class="kv">${kv([
+      ['פרויקט', esc(d.project_name)], ['מס\' פרויקט', L(d.project_code)], ['מס\' חוזה', L(d.contract_code)],
+      ['מס\' חשבון חלקי', L(d.account_code)], ['חודש ביצוע', L(d.month)], ['תאריך הפקה', L(d.date)],
+      ['תנאי תשלום', esc(d.payment_terms)], ['תאריך תשלום מחושב', L(d.payment_date)] ])}</table></div>
+    <div><h4>פרטי הקבלן</h4><table class="kv">${kv([
+      ['שם הקבלן', T(k.name)], ['מס\' קבלן באלקטרה', L(k.electra_no)], ['כתובת', T(k.address)],
+      ['טלפון', L(k.phone)], ['פקס', L(k.fax)] ])}</table></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">מצטבר בחשבון זה</div><div class="v num">₪ ${money(fin.cumulative||grand)}</div></div>
+    <div class="kpi"><div class="l">לתשלום (לפני מע"מ)</div><div class="v num">₪ ${money(fin.total_pay)}</div></div>
+    <div class="kpi main"><div class="l">סה"כ לתשלום כולל מע"מ</div><div class="v num">₪ ${money(fin.total_with_vat)}</div></div>
+    <div class="kpi"><div class="l">ביצוע מתוך היקף חוזה ${L(money(fin.contract_scope)+' ₪')}</div><div class="v">${n(fin.exec_pct).toFixed(2)}%</div><div class="pbar"><span style="width:${pct}%"></span></div></div>
+  </div>
+  <div class="two">
+    <div><h4>ריכוז לפי מבנה</h4><table class="grid">
+      <tr><th>מבנה / פרק</th><th style="width:34%">סכום מצטבר (₪)</th></tr>
+      ${sumRows}<tr class="grand"><td>סה"כ</td><td class="num">${money(grand)}</td></tr></table></div>
+    <div><h4>חישוב התשלום</h4><table class="grid">
+      <tr><th>רכיב</th><th style="width:34%">סכום (₪)</th></tr>${payRows}</table></div>
+  </div>
+  ${fin.disclaimer ? `<div class="note">${esc(fin.disclaimer)}</div>` : ''}
+  <div class="sign"><div>הוכן ע"י</div><div>נבדק ע"י מנהל הפרויקט</div><div>אושר ע"י מורשה חתימה</div></div>
+
+  <div class="html2pdf__page-break"></div>
+  <div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+  <table class="grid items">
+    <thead><tr><th style="width:10%">סעיף</th><th>תיאור</th><th style="width:4.5%">יח'</th>
+      <th style="width:6.8%">כמות חוזה</th><th style="width:6.8%">כמות מצטברת</th><th style="width:5.6%">% תשלום</th><th style="width:6.8%">כמות נוכחית</th>
+      <th style="width:8%">מחיר יח' (₪)</th><th style="width:9.8%">סה"כ מצטבר (₪)</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+  $('doc').contentEditable = 'true';
+  $('empty').hidden = true; $('paper').hidden = false;
+}
+
+/* ---------- checks ---------- */
+function runChecks({ header, fin, items }){
+  const w = [], near = (a,b,t=0.05) => Math.abs(a-b) <= t;
+  for(const it of items) if(it.price && !near(it.cum*it.price, it.total, 0.5))
+    w.push(`סעיף ${L(it.code)}: כמות × מחיר (${money(it.cum*it.price)}) שונה מהסכום בשורה (${money(it.total)}).`);
+  const grand = items.reduce((s,i)=>s+i.total,0);
+  if(n(fin.grand_total) && !near(grand, n(fin.grand_total), 0.5)) w.push(`סכום הסעיפים (${money(grand)}) שונה מ"מחיר כולל" במסמך (${money(fin.grand_total)}). ייתכן שסעיף לא נקרא.`);
+  if(n(fin.item_count) && items.length !== Math.round(n(fin.item_count))) w.push(`נקראו ${items.length} סעיפים מתוך ${Math.round(n(fin.item_count))} שזוהו במסמך.`);
+  const rows = fin.payment_rows||[];
+  if(rows.length && n(fin.cumulative)){
+    const ded = rows.filter(r=>n(r.amount)<0).reduce((s,r)=>s+n(r.amount),0);
+    const prev = rows.filter(r=>/קודם/.test(r.label)).reduce((s,r)=>s+Math.abs(n(r.amount)),0);
+    const exp = n(fin.cumulative) + ded - prev;
+    if(n(fin.total_pay) && !near(exp, n(fin.total_pay), 1))
+      w.push(`מצטבר פחות קיזוזים וחשבון קודם (${money(exp)}) אינו שווה ל"סה"כ לתשלום" (${money(fin.total_pay)}).`);
+  }
+  if(n(fin.total_pay) && n(fin.vat) && !near(n(fin.total_pay)+n(fin.vat), n(fin.total_with_vat), 0.05))
+    w.push(`סה"כ לתשלום + מע"מ אינו שווה לסה"כ כולל מע"מ.`);
+  if(n(fin.contract_scope) && n(fin.exec_pct) && !near(grand/n(fin.contract_scope)*100, n(fin.exec_pct), 0.02))
+    w.push(`אחוז הביצוע (${n(fin.exec_pct)}%) אינו תואם לחישוב (${(grand/n(fin.contract_scope)*100).toFixed(2)}%).`);
+  const need = { 'פרויקט':header.doc?.project_name, 'מס\' חשבון חלקי':header.doc?.account_code, 'מס\' חוזה':header.doc?.contract_code, 'תאריך הפקה':header.doc?.date,
+    'תנאי תשלום':header.doc?.payment_terms, 'תאריך תשלום':header.doc?.payment_date, 'שם הקבלן':header.contractor?.name, 'מס\' קבלן':header.contractor?.electra_no, 'כתובת הקבלן':header.contractor?.address };
+  const miss = Object.keys(need).filter(k => !need[k]);
+  if(miss.length) w.unshift(`שדות שלא זוהו בקובץ: ${miss.join(', ')}. אפשר להשלים אותם בלחיצה על התצוגה, או לשלוח לי את הטקסט שנקרא (למטה).`);
+  const dd = parseDate(header.doc?.date), pd = parseDate(header.doc?.payment_date);
+  if(dd && pd && pd < dd) w.push(`תאריך התשלום המחושב (${L(header.doc.payment_date)}) מוקדם מתאריך הפקת החשבון (${L(header.doc.date)}).`);
+  for(const it of items) if(/יח/.test(it.unit) && it.cum % 1 !== 0) w.push(`סעיף ${L(it.code)}: כמות לא שלמה (${qty(it.cum)}) ביחידה "${esc(it.unit)}".`);
+  $('checks').innerHTML = w.length ? `<ul class="warn">${w.map(x=>`<li>${x}</li>`).join('')}</ul>` : `<div class="allok">כל החישובים תואמים.</div>`;
+  $('checkBox').hidden = false;
+}
+
+/* ---------- export ---------- */
+let blobUrl = null;
+function exMsg(html, isErr){ $('exMsg').innerHTML = html ? `<div class="${isErr?'error':'okmsg'}">${html}</div>` : ''; }
+
+$('pr').onclick = () => {
+  exMsg('');
+  try{ window.print(); }catch(e){}
+  setTimeout(()=>exMsg('אם חלון ההדפסה לא נפתח, הדפדפן חוסם הדפסה בתוך החלון הזה. השתמשו בכפתור "הורד PDF".', false), 1200);
+};
+
+$('dl').onclick = async () => {
+  exMsg('');
+  if(typeof html2pdf === 'undefined'){ exMsg('רכיב יצירת ה-PDF לא נטען (ייתכן שחסום ברשת). רעננו את הדף ונסו שוב.', true); return; }
+  const btn = $('dl'); btn.disabled = true; btn.textContent = 'מכין PDF...';
+  const el = $('doc'); el.contentEditable = 'false'; el.classList.add('exporting');
+  const code = (lastData?.header?.doc?.account_code || 'invoice').replace(/[^\w-]/g,'');
+  const fname = `invoice_${code}.pdf`;
+  try{
+    const pdf = await html2pdf().set({
+      margin:[14,13,16,13], filename:fname,
+      image:{type:'jpeg',quality:0.96},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+      pagebreak:{mode:['css','legacy'], avoid:['tr','.kpis','.sign','.note']}
+    }).from(el).toPdf().get('pdf');
+    const tot = pdf.internal.getNumberOfPages();
+    for(let i=1;i<=tot;i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140);
+      pdf.text(`${i} / ${tot}`, 13, 289); pdf.text(code, 197, 289, {align:'right'}); }
+    const blob = pdf.output('blob');
+    if(blobUrl) URL.revokeObjectURL(blobUrl);
+    blobUrl = URL.createObjectURL(blob);
+
+    // ניסיון הורדה אוטומטית
+    try{ const a = document.createElement('a'); a.href = blobUrl; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
+
+    // קישורים ידניים למקרה שההורדה האוטומטית נחסמה
+    exMsg(`הקובץ מוכן (${tot} עמודים, ${Math.round(blob.size/1024)} KB).<br>אם ההורדה לא התחילה:
+      <a class="btn" href="${blobUrl}" download="${fname}">לחצו כאן לשמירת הקובץ</a>
+      <a class="btn" href="${blobUrl}" target="_blank" rel="noopener">פתיחה בלשונית חדשה</a>`, false);
+  }catch(e){
+    exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
+  }finally{ el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
+};
+
+/* test hook */
+window.__renderDemo = data => { lastData = data; render(data); runChecks(data); $('exportBox').hidden=false; };
+</script>
+</body>
+</html>
