@@ -25,7 +25,8 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 - **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
 - **Blocks:** blocks (עבודות / התייקרויות / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
 - **Emphasis:** the pre-VAT total is the emphasised row. The incl.-VAT total is a quiet row.
-- **Not wired yet:** the parser does not fill `fin.summary` yet.
+- **Parsing:** `parseInvoice` fills `fin.summary` from the payment page: the main column becomes `rows` (single `amt` column, op inferred from the label), the חו"ג offset table becomes `offset`, plus contract scope, % execution and index linkage. The ERP writes gershayim as a single quote (סה'כ), which is normalised to ".
+- **Columns:** only columns that have data are shown.
 
 ## Notes
 - The logo is stored via `window.storage` (the Claude-artifact API). The local fallback shim at the top of the script maps it to `localStorage`.

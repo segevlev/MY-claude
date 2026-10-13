@@ -417,7 +417,7 @@ function parseInvoice(pages){
     for(const a of amts.sort((p,q) => q.y - p.y)){
       const labs = pg.filter(i => HEB.test(i.s) && Math.abs(i.y - a.y) < 3 && i.x > a.r && !amts.some(o => o !== a && Math.abs(o.y - a.y) < 3 && o.x > a.r && o.x < i.x)).sort((p,q) => q.x - p.x);
       if(!labs.length) continue;
-      const label = tidy(labs.map(l => l.s).join(' ')).replace(/\s*\(\s*/g,' (').replace(/\s*\)/g,')').trim();
+      const label = tidy(labs.map(l => l.s).join(' ')).replace(/([\u05D0-\u05EA])'([\u05D0-\u05EA])/g, '$1"$2').replace(/\s*\(\s*/g,' (').replace(/\s*\)/g,')').trim();
       (Math.abs(a.r - right) < 15 ? main : side).push({ label, amount: num(a.s) });
     }
     fin.payment_rows = main;
@@ -427,10 +427,33 @@ function parseInvoice(pages){
     fin.vat = g(main, /^מע"מ/);
     fin.total_with_vat = g(main, /כולל מע"מ/);
     fin.chg_offset = g(side, /קיזוז חו"ג מצטבר/);
+    const end = side.findIndex(r => /לתשלום/.test(r.label));   // the indexation table below shares this column
+    fin.offset_rows = end >= 0 ? side.slice(0, end + 1) : [];
+    fin.total_this = g(main, /^סה"כ חשבון זה/);
   }
   fin.contract_scope = num(val(/הקף חוזה:?\s*([\d,.]+)/));
   fin.exec_pct = num(val(/%\s*ביצוע:?\s*([\d.]+)/) || val(/ביצוע\s*%:?\s*([\d.]+)/));
   const dis = find(/אינו מהווה|מוקלד/); if(dis) fin.disclaimer = dis.s;
+
+  /* ---- summary table (טבלה מסכמת): rows as they appear on the payment page, one amount column ---- */
+  const op = l => /^סה"כ|^מצטבר (בחשבון זה|נ?ו?כחי)/.test(l) ? '=' : /קודם|קיזוז|ניכוי|עי?כבון|ביטוח|קנס/.test(l) ? '-' : '+';
+  const sumRow = r => { const vat = /^מע"מ/.test(r.label);
+    return { label: vat ? 'מע"מ' : r.label, op: op(r.label), amt: r.amount }; };
+  const vr = fin.payment_rows.find(r => /^מע"מ/.test(r.label));
+  const indexed = val(/צמוד למדד:?\s*(.+)/), base = find(/מדד בסיס/);
+  const sinfo = {};
+  if(fin.contract_scope) sinfo.scope = fin.contract_scope;
+  if(fin.exec_pct) sinfo.exec_pct = fin.exec_pct;
+  if(indexed){ const m = tidy(indexed).match(/^(.*?)\s*([\d.]+)\s*-\s*(\d{1,2}\/\d{2})$/);   // "מדד הבניה ש.קיץ 109.4000-7/11"
+    if(m){ sinfo.index = m[1]; sinfo.index_base = `${m[2]} (${m[3]})`; } else sinfo.index = tidy(indexed); }
+  if(base && !sinfo.index_base){ const bl = P[base.p].filter(i => Math.abs(i.y - base.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' ');
+    const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = m[1]; }
+  fin.summary = {
+    info: sinfo,
+    rows: fin.payment_rows.map(sumRow),
+    vat_rate: vr && /([\d.]+)%/.test(vr.label) ? parseFloat(vr.label.match(/([\d.]+)%/)[1]) : undefined,
+    offset: (fin.offset_rows || []).map(sumRow)
+  };
 
   if(!items.length) throw new Error('לא נמצאה טבלת סעיפים בקובץ. ודאו שזה חשבון חלקי שהופק מהמערכת (ולא סריקה).');
   return { header: { company, doc, contractor }, fin, items };
@@ -500,12 +523,13 @@ function buildItems(items, groups){
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
-   fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev}], vat_rate }
-   rows come in the order of the invoice; only what the invoice has is shown.
+   fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev | amt}], vat_rate, offset:[rows] }
+   rows come in the order of the invoice; only what the invoice has is shown (fields, rows, cards and columns).
    With no summary data at all, the full catalogue below is shown as an empty template. */
 const SUM_INFO = [
-  { title:'היקף החוזה', rows:[['orig','סה"כ סעיפי חוזה מקורי'], ['boq','סה"כ סעיפי כתב כמויות חוזה'], ['incl_exc','סה"כ סעיפי חוזה כולל חריגים'], ['balance','סה"כ יתרת חוזה']] },
+  { title:'היקף החוזה', rows:[['orig','סה"כ סעיפי חוזה מקורי'], ['boq','סה"כ סעיפי כתב כמויות חוזה'], ['incl_exc','סה"כ סעיפי חוזה כולל חריגים'], ['scope','הקף חוזה'], ['exec_pct','% ביצוע','pct'], ['balance','סה"כ יתרת חוזה']] },
   { title:'חריגים (מנהל)', rows:[['exc_mgr','סה"כ סעיפים חריגים'], ['overrun_mgr','סה"כ חריגה בסעיפי חוזה']] },
+  { title:'הצמדה', rows:[['index','צמוד למדד','text'], ['index_base','ערך מדד בסיס','text']] },
   { title:'מקדמות ופרעון', rows:[['adv_given','סכום מקדמה שניתנה'], ['adv_left','יתרת מקדמה לקיזוז'], ['due_date','תאריך פרעון חשבון', 'date']] }
 ];
 // op: '+' adds, '-' deducts, '=' subtotal
@@ -517,43 +541,58 @@ const SUM_TEMPLATE = [
 ].map(([label, op]) => ({ label, op }));
 // block by label. A subtotal (=) closes the current block; an unrecognised deduction goes to קיזוזים, any other unrecognised row stays in the current block
 const SUM_GROUPS = [
-  [/מע"מ|לתשלום/, 'סיכום'],
+  [/מע"מ|לתשלום|^סה"כ חשבון זה|קודם/, 'סיכום'],
   [/התייקרו/, 'התייקרויות'],
-  [/סעיפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
+  [/סעיפי חוזה|עבודות לפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
+const SUM_COLS = [['cur','סכום שוטף (₪)','בחשבון זה'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['amt','סכום (₪)','']];
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
 function buildSummary(s, d){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
   const template = !(s.rows && s.rows.length) && !Object.keys(info).length;
   const rows = template ? SUM_TEMPLATE : (s.rows || []);
   const dash = '<span class="missing">—</span>';
-  const cell = v => `<td class="num${n(v) < 0 ? ' neg' : ''}">${has(v) ? money(v) : template ? dash : ''}</td>`;
+  const all = rows.concat(s.offset || []);
+  const cols = template ? SUM_COLS.slice(0, 3) : SUM_COLS.filter(([k]) => all.some(r => has(r[k])));
+  const w = Math.min(22, Math.round(60 / Math.max(cols.length, 1)));
+  const fmt = (v, t) => t === 'date' || t === 'text' ? T(v) : t === 'pct' ? `<span class="ltr">${qty(v, 2)}%</span>` : money(v);
 
   const infoHtml = SUM_INFO.map(g => {
     const rs = g.rows.filter(([k]) => template || has(info[k]));
     return rs.length ? `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
-      rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${has(info[k]) ? (t === 'date' ? L(info[k]) : money(info[k])) : dash}</td></tr>`).join('')}</table></div>` : '';
+      rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${has(info[k]) ? fmt(info[k], t) : dash}</td></tr>`).join('')}</table></div>` : '';
   }).join('');
+
+  const thead = `<thead><tr><th scope="col">תיאור</th><th scope="col" style="width:7%"><span class="sr">פעולה</span></th>${
+    cols.map(([, h, sub]) => `<th scope="col" style="width:${w}%">${h}${sub ? `<span class="th2">${sub}</span>` : ''}</th>`).join('')}</tr></thead>`;
+  const tr = (r, cls) => {
+    const vat = /^מע"מ/.test(r.label);
+    const label = vat ? `מע"מ${has(s.vat_rate) ? ` (${L(qty(s.vat_rate, 2) + '%')})` : template ? ' (<span class="missing">%</span>)' : ''}` : T(r.label);
+    const op = OP_NAME[r.op] ? r.op : '';
+    const cells = cols.map(([k]) => vat && k !== 'cur' && k !== 'amt' && !has(r[k]) ? '<td></td>'
+      : `<td class="num${n(r[k]) < 0 ? ' neg' : ''}">${has(r[k]) ? money(r[k]) : template ? dash : ''}</td>`).join('');
+    return `<tr class="${cls}"><td>${label}</td><td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>${cells}</tr>`;
+  };
 
   let body = '', group = '';
   for(const r of rows){
     const known = (SUM_GROUPS.find(([re]) => re.test(r.label)) || [])[1];
     const g = (r.op === '=' && group && known !== 'סיכום') ? group : known || (r.op === '-' ? 'קיזוזים וניכויים' : group || 'עבודות');
-    if(g !== group){ group = g; body += `<tr class="sg"><td colspan="5">${g}</td></tr>`; }
-    const vat = /^מע"מ/.test(r.label), net = /לתשלום.*(ללא|לפני) מע"מ/.test(r.label), gross = /כולל מע"מ/.test(r.label);
-    const label = vat ? `מע"מ${has(s.vat_rate) ? ` (${L(qty(s.vat_rate, 2) + '%')})` : template ? ' (<span class="missing">%</span>)' : ''}` : T(r.label);
-    const cls = net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '';
-    const op = OP_NAME[r.op] ? r.op : '';
-    body += `<tr class="${cls}"><td>${label}</td><td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>${cell(r.cur)}${vat && !has(r.cum) ? '<td></td><td></td>' : cell(r.cum) + cell(r.prev)}</tr>`;
+    if(g !== group){ group = g; body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`; }
+    const net = /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label), gross = /כולל מע"מ/.test(r.label);
+    body += tr(r, net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '');
   }
+  const offset = (s.offset || []).length ? `<h4>קיזוז חו"ג</h4><table class="grid sumt">${thead}<tbody>${
+    s.offset.map(r => tr(r, r.op === '=' ? 'sub' : '')).join('')}</tbody></table>` : '';
+
   return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
   <table class="grid sumt">
-    <caption class="sr">טבלה מסכמת: סכום שוטף, מצטבר נוכחי ומצטבר קודם לכל רכיב</caption>
-    <thead><tr><th scope="col">תיאור</th><th scope="col" style="width:7%"><span class="sr">פעולה</span></th><th scope="col" style="width:20%">סכום שוטף (₪)<span class="th2">בחשבון זה</span></th>
-      <th scope="col" style="width:20%">מצטבר נוכחי (₪)<span class="th2">כולל חשבון זה</span></th><th scope="col" style="width:20%">מצטבר קודם (₪)<span class="th2">עד החשבון הקודם</span></th></tr></thead>
+    <caption class="sr">טבלה מסכמת: סכומי החשבון לפי רכיב</caption>
+    ${thead}
     <tbody>${body}</tbody>
   </table>
+  ${offset}
   <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
 }
 
@@ -639,7 +678,7 @@ function runChecks({ header, fin, items }){
   if(rows.length && n(fin.cumulative)){
     const ded = rows.filter(r=>n(r.amount)<0).reduce((s,r)=>s+n(r.amount),0);
     const prev = rows.filter(r=>/קודם/.test(r.label)).reduce((s,r)=>s+Math.abs(n(r.amount)),0);
-    const exp = n(fin.cumulative) + ded - prev;
+    const exp = (n(fin.total_this) || n(fin.cumulative)) + ded - prev;   // סה"כ חשבון זה already includes indexation
     if(n(fin.total_pay) && !near(exp, n(fin.total_pay), 1))
       w.push(`מצטבר פחות קיזוזים וחשבון קודם (${money(exp)}) אינו שווה ל"סה"כ לתשלום" (${money(fin.total_pay)}).`);
   }
