@@ -23,7 +23,7 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 `buildSummary(fin.summary)` renders its own page between page 1 and the items. The data shape is `{ info:{orig, boq, incl_exc, balance, exc_mgr, overrun_mgr, adv_given, adv_left, due_date}, rows:[{label, op:'+'|'-'|'=', cur, cum, prev}], vat_rate }`.
 - **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.
 - **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
-- **Blocks:** blocks (עבודות / התייקרויות / עכבון / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
+- **Blocks:** blocks (עבודות / התייקרויות / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
 - **Emphasis:** the pre-VAT total is the emphasised row. The incl.-VAT total is a quiet row.
 - **Not wired yet:** the parser does not fill `fin.summary` yet.
 
