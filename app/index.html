@@ -105,6 +105,25 @@ button,input{font-family:inherit}
 .exporting .html2pdf__page-break{margin:0;border:0}
 .mini{display:flex;justify-content:space-between;border-bottom:2px solid var(--navy);padding-bottom:6px;margin-bottom:8px;font-size:8.5pt;color:#55606f}
 .mini b{color:var(--navy);font-size:11pt}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.si{display:flex;gap:10px;margin-bottom:14px}
+.si-card{flex:1;min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.si-t{background:var(--soft);color:var(--navy);font-weight:bold;padding:5px 8px;border-bottom:2px solid var(--amber);font-size:9pt}
+.si .kv td{border-width:0 0 1px;font-size:8.6pt;padding:5px 8px}
+.si .kv tr:last-child td{border-bottom:0}
+.si .kv td:first-child{background:#fff;width:auto;white-space:normal}
+.si .kv td:last-child{white-space:nowrap}
+.sumt{font-size:9.6pt}
+.sumt th{font-size:9pt;vertical-align:bottom}
+.sumt .th2{display:block;font-weight:normal;font-size:7.6pt;color:#c9d4e3;margin-top:2px}
+.sumt td{padding:6px 9px}
+.sumt tbody tr:not(.sg):not(.sub):not(.final):nth-child(even) td{background:#fafbfc}
+.sumt tr.sg td{background:#fff;color:var(--navy);font-weight:bold;font-size:8.6pt;border-width:0 0 2px;border-bottom-color:var(--navy);padding:12px 4px 3px}
+.sumt tr.sub td{background:#e3e9f1;border-top:1.5px solid var(--navy)}
+.sumt tr.final td{font-size:11.5pt;padding:9px}
+.sumt td.op{text-align:center;font-weight:bold;font-size:11pt;padding:4px 0}
+.sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
+.sumt tr.final td.op{color:var(--amber)}
 .items{font-size:8.6pt}
 .items th{padding:5px 3px;font-size:8pt}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:8pt}
@@ -479,6 +498,59 @@ function buildItems(items, groups){
   return { rows, summary, grand };
 }
 
+/* ---------- summary table (טבלה מסכמת) ----------
+   template only – data comes from fin.summary = { info:{key:value}, rows:{key:{cur,cum,prev}}, vat_rate } */
+const SUM_INFO = [
+  { title:'היקף החוזה', rows:[['orig','סה"כ סעיפי חוזה מקורי'], ['boq','סה"כ סעיפי כתב כמויות חוזה'], ['incl_exc','סה"כ סעיפי חוזה כולל חריגים'], ['balance','סה"כ יתרת חוזה']] },
+  { title:'חריגים (מנהל)', rows:[['exc_mgr','סה"כ סעיפים חריגים'], ['overrun_mgr','סה"כ חריגה בסעיפי חוזה']] },
+  { title:'מקדמות ופרעון', rows:[['adv_given','סכום מקדמה שניתנה'], ['adv_left','יתרת מקדמה לקיזוז'], ['due_date','תאריך פרעון חשבון', 'date']] }
+];
+// op: '+' adds, '-' deducts, '=' subtotal; group splits the table into readable blocks
+const SUM_ROWS = [
+  { key:'contract',  label:'סעיפי חוזה', op:'+', group:'עבודות' },
+  { key:'exc_price', label:'חריג במחיר חוזה', op:'+' },
+  { key:'adv_disc',  label:'קיזוז מקדמה/הנחה', op:'-' },
+  { key:'idx_base',  label:'סכום לחישוב התייקרויות', op:'=' },
+  { key:'idx',       label:'התייקרות', op:'+', group:'התייקרויות' },
+  { key:'with_idx',  label:'סכום כולל התייקרויות', op:'=' },
+  { key:'misc',      label:'עבודות שונות', op:'-', group:'קיזוזים וניכויים' },
+  { key:'elec',      label:'קיזוז חשמל', op:'-' },
+  { key:'safety',    label:'קנסות בטיחות', op:'-' },
+  { key:'fines',     label:'קנסות', op:'-' },
+  { key:'water',     label:'קיזוז מים', op:'-' },
+  { key:'elec_ops',  label:'רכש מפעילים חשמליים', op:'-' },
+  { key:'exc_fixed', label:'חריגים במחיר קבוע', op:'+', group:'חריגים' },
+  { key:'net',       label:'סכום לתשלום ללא מע"מ', op:'=', group:'סיכום' },
+  { key:'vat',       label:'מע"מ', op:'+', vat:true },
+  { key:'gross',     label:'סה"כ לתשלום כולל מע"מ', op:'=', final:true }
+];
+const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
+function buildSummary(s, d){
+  const info = s.info || {}, rows = s.rows || {};
+  const dash = '<span class="missing">—</span>';
+  const amt = v => v === undefined || v === null || v === '' ? dash : money(v);
+  const cell = v => `<td class="num${n(v) < 0 ? ' neg' : ''}">${amt(v)}</td>`;
+  const infoHtml = SUM_INFO.map(g => `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
+    g.rows.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${info[k] !== undefined && info[k] !== '' ? (t === 'date' ? L(info[k]) : money(info[k])) : dash}</td></tr>`).join('')}</table></div>`).join('');
+  let body = '';
+  for(const r of SUM_ROWS){
+    if(r.group) body += `<tr class="sg"><td colspan="5">${r.group}</td></tr>`;
+    const v = rows[r.key] || {};
+    const label = r.vat ? `מע"מ (${s.vat_rate !== undefined ? L(qty(s.vat_rate, 2) + '%') : '<span class="missing">%</span>'})` : r.label;
+    const cls = r.final ? 'final' : r.op === '=' ? 'sub' : '';
+    body += `<tr class="${cls}"><td>${label}</td><td class="op op${r.op === '+' ? 'p' : r.op === '-' ? 'm' : 'e'}" title="${OP_NAME[r.op]}" aria-label="${OP_NAME[r.op]}">${r.op}</td>${cell(v.cur)}${r.vat ? '<td></td><td></td>' : cell(v.cum) + cell(v.prev)}</tr>`;
+  }
+  return `<div class="mini"><b>טבלה מסכמת</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+  <div class="si">${infoHtml}</div>
+  <table class="grid sumt">
+    <caption class="sr">טבלה מסכמת: סכום שוטף, מצטבר נוכחי ומצטבר קודם לכל רכיב</caption>
+    <thead><tr><th scope="col">תיאור</th><th scope="col" style="width:7%"><span class="sr">פעולה</span></th><th scope="col" style="width:20%">סכום שוטף (₪)<span class="th2">בחשבון זה</span></th>
+      <th scope="col" style="width:20%">מצטבר נוכחי (₪)<span class="th2">כולל חשבון זה</span></th><th scope="col" style="width:20%">מצטבר קודם (₪)<span class="th2">עד החשבון הקודם</span></th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
+}
+
 function render({ header, fin, items }){
   const c = header.company||{}, d = header.doc||{}, k = header.contractor||{};
   const { rows, summary, grand } = buildItems(items, fin.groups||{});
@@ -533,6 +605,9 @@ function render({ header, fin, items }){
   </div>
   ${fin.disclaimer ? `<div class="note">${esc(fin.disclaimer)}</div>` : ''}
   <div class="sign"><div>הוכן ע"י</div><div>נבדק ע"י מנהל הפרויקט</div><div>אושר ע"י מורשה חתימה</div></div>
+
+  <div class="html2pdf__page-break"></div>
+  ${buildSummary(fin.summary || {}, d)}
 
   <div class="html2pdf__page-break"></div>
   <div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
