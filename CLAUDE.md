@@ -19,6 +19,11 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 5. **Checks**: `runChecks` runs these validations: qty×price per line, sum of lines vs "מחיר כולל", payment math, VAT, execution %, missing fields, dates, and non-integer quantities in unit items.
 6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
 
+## Items table (פירוט סעיפים)
+Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעולה, תאור→תאור פעולה, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
+- **Computed:** `סכום נוכחי` = כמות נוכחית × מחיר יחידה (`curAmt`). It is also summed in subtotals.
+- **Empty for now:** `כמות חוזה מקורית` has a header only. The user will define its logic later.
+
 ## Summary table (טבלה מסכמת)
 `buildSummary(fin.summary)` renders on page 1, below the KPIs. Page 1 has no other financial tables, and the KPIs have no incl.-VAT tile. The data shape is `{ info:{orig, boq, incl_exc, balance, exc_mgr, overrun_mgr, adv_given, adv_left, due_date}, rows:[{label, op:'+'|'-'|'=', cur, cum, prev}], vat_rate }`.
 - **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.

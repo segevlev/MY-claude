@@ -126,18 +126,18 @@ button,input{font-family:inherit}
 .sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
 .sumt tr.final td.op{color:var(--amber)}
 .sumt tr.quiet td{font-size:9pt;color:#55606f;background:#fff}
-.items{font-size:8.6pt}
-.items th{padding:5px 3px;font-size:8pt}
-.items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:8pt}
+.items{font-size:7.8pt}
+.items th{padding:4px 2px;font-size:7.2pt;line-height:1.2;vertical-align:bottom}
+.items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:7.4pt;padding:4px 3px}
 .items td.c{text-align:center}
-.items td.num,.items td.c{padding:5px 4px;font-size:8.2pt}
+.items td.num,.items td.c{padding:4px 3px;font-size:7.4pt}
 .items tr.s1 td{background:var(--navy);color:#fff;font-weight:bold}
 .items tr.s2 td{background:#c9d4e3;font-weight:bold}
 .items tr.s3 td{background:#eef2f7;font-weight:bold;color:var(--navy)}
 .items tr.t3 td{font-weight:bold;background:#fafbfc}
 .items tr.t2 td{font-weight:bold;background:#eef2f7}
 .items tr.t1 td{font-weight:bold;background:#c9d4e3;border-bottom:2px solid var(--navy)}
-.items tr.tot td{background:var(--navy);color:#fff;font-weight:bold;font-size:10.5pt}
+.items tr.tot td{background:var(--navy);color:#fff;font-weight:bold;font-size:9pt}
 .items .sm{color:var(--mute);font-size:7.8pt;display:block;margin-top:2px;line-height:1.35}
 
 @media (max-width:900px){.layout{flex-direction:column}.side{width:100%;position:static}}
@@ -371,7 +371,7 @@ function parseInvoice(pages){
     const cols = [];
     for(const h of hdr){ const c = cols.find(c => h.x < c.r - 1 && h.r > c.x + 1); if(c){ c.x = Math.min(c.x,h.x); c.r = Math.max(c.r,h.r); c.t += ' ' + h.s; } else cols.push({ x:h.x, r:h.r, t:h.s }); }
     cols.forEach(c => c.c = (c.x + c.r)/2);
-    const role = t => /סעיף/.test(t) ? 'code' : /תי?אור/.test(t) ? 'desc' : /מחיר/.test(t) ? 'price' : /חוזה/.test(t) ? 'cq' : /מצטברת/.test(t) ? 'cum' : /תשלום/.test(t) ? 'pct' : /נוכחית/.test(t) ? 'cur' : /מצטבר|סה"כ/.test(t) ? 'total' : /יחידה/.test(t) ? 'unit' : null;
+    const role = t => /קודם/.test(t) ? 'prev' : /סעיף/.test(t) ? 'code' : /תי?אור/.test(t) ? 'desc' : /מחיר/.test(t) ? 'price' : /חוזה/.test(t) ? 'cq' : /מצטברת/.test(t) ? 'cum' : /תשלום/.test(t) ? 'pct' : /נוכחית/.test(t) ? 'cur' : /מצטבר|סה"כ/.test(t) ? 'total' : /יחידה/.test(t) ? 'unit' : null;
     cols.forEach(c => c.role = role(c.t));
     const C = Object.fromEntries(cols.filter(c => c.role).map(c => [c.role, c]));
     if(!C.code || !C.desc) continue;
@@ -403,7 +403,7 @@ function parseInvoice(pages){
       if(r.v.price === undefined){ if(!groups[r.code]) groups[r.code] = text; continue; }
       let title = text, detail = '';
       if(dlt.length >= 3 || (dlt.length === 2 && text.length > 140)){ title = tidy(dlt[0]); detail = tidy(dlt.slice(1).join(' ')); }
-      items.push({ code:r.code, title, detail, unit:r.unit, cq:r.v.cq||0, cum:r.v.cum||0, pct:r.v.pct||0, cur:r.v.cur||0, price:r.v.price||0, total: r.v.total ?? (r.v.cum||0)*(r.v.price||0) });
+      items.push({ code:r.code, title, detail, unit:r.unit, cq:r.v.cq||0, cum:r.v.cum||0, pct:r.v.pct||0, cur:r.v.cur||0, prev:r.v.prev, price:r.v.price||0, total: r.v.total ?? (r.v.cum||0)*(r.v.price||0) });
     }
   }
 
@@ -496,11 +496,29 @@ $('go').onclick = async () => {
 
 /* ---------- render ---------- */
 const LEVEL = ['', 'מבנה', 'פרק', 'תת פרק'];
+/* items table columns, in display order. src = PDF column it comes from; '' = not in the PDF yet (computed later, shown empty) */
+const ITEM_COLS = [
+  { h:'מספר פעולה',          w:8.5, cls:'code', v: it => esc(it.code) },
+  { h:'תאור פעולה',          w:0,   cls:'',     v: it => T(it.title) + (it.detail ? `<span class="sm">${T(it.detail)}</span>` : '') },
+  { h:"יח' מידה",            w:4,   cls:'c',    v: it => esc(it.unit) },
+  { h:'כמות חוזה מקורית',    w:6.2, cls:'num',  v: () => '' },
+  { h:'כמות חוזה מעודכנת',   w:6.2, cls:'num',  v: it => qty(it.cq, 2) },
+  { h:'כמות מצטברת קודמת',   w:6.2, cls:'num',  v: it => it.prev === undefined ? '' : qty(it.prev) },
+  { h:'כמות נוכחית',         w:6.2, cls:'num',  v: it => qty(it.cur) },
+  { h:'מחיר יחידה (₪)',      w:6.5, cls:'num',  v: it => money(it.price) },
+  { h:'ביצוע %',             w:5,   cls:'num',  v: it => `${n(it.pct)}%` },
+  { h:'כמות מצטברת נוכחית',  w:6.2, cls:'num',  v: it => qty(it.cum) },
+  { h:'סכום נוכחי (₪)',      w:7.5, cls:'num',  v: it => money(curAmt(it)), sum:'cur' },
+  { h:'סכום מצטבר (₪)',      w:8,   cls:'num',  v: it => money(it.total), sum:'total' }
+];
+const curAmt = it => n(it.cur) * n(it.price);   // סכום נוכחי = כמות נוכחית × מחיר יחידה
 function buildItems(items, groups){
-  let rows = '', stack = [], grand = 0;
+  let rows = '', stack = [], grand = 0, grandCur = 0;
+  const N = ITEM_COLS.length, lead = N - 3;   // label spans up to the two amount columns
+  const sumRow = (cls, label, cur, total) => `<tr class="${cls}"><td></td><td colspan="${lead}">${label}</td><td class="num">${money(cur)}</td><td class="num">${money(total)}</td></tr>`;
   const close = () => {
     const g = stack.pop(), d = stack.length+1, cls = 't'+Math.min(d,3);
-    rows += `<tr class="${cls}"><td></td><td colspan="7">סה"כ ל${LEVEL[Math.min(d,3)]} ${L(g.code)}: ${esc(g.name)}</td><td class="num">${money(g.total)}</td></tr>`;
+    rows += sumRow(cls, `סה"כ ל${LEVEL[Math.min(d,3)]} ${L(g.code)}: ${esc(g.name)}`, g.cur, g.total);
   };
   for(const it of items){
     const parts = it.code.split('.'), pref = [];
@@ -509,16 +527,15 @@ function buildItems(items, groups){
     while(stack.length > j) close();
     for(let i=j;i<pref.length;i++){
       const name = groups[pref[i]] || '';
-      stack.push({ code:pref[i], name, total:0 });
-      rows += `<tr class="s${Math.min(i+1,3)}"><td class="code">${esc(pref[i])}</td><td colspan="8">${esc(name)}</td></tr>`;
+      stack.push({ code:pref[i], name, total:0, cur:0 });
+      rows += `<tr class="s${Math.min(i+1,3)}"><td class="code">${esc(pref[i])}</td><td colspan="${N-1}">${esc(name)}</td></tr>`;
     }
-    rows += `<tr><td class="code">${esc(it.code)}</td><td>${T(it.title)}${it.detail?`<span class="sm">${T(it.detail)}</span>`:''}</td>
-      <td class="c">${esc(it.unit)}</td><td class="num">${qty(it.cq,2)}</td><td class="num">${qty(it.cum)}</td><td class="num">${n(it.pct)}%</td>
-      <td class="num">${qty(it.cur)}</td><td class="num">${money(it.price)}</td><td class="num">${money(it.total)}</td></tr>`;
-    stack.forEach(g => g.total += it.total); grand += it.total;
+    rows += `<tr>${ITEM_COLS.map(c => `<td${c.cls ? ` class="${c.cls}"` : ''}>${c.v(it)}</td>`).join('')}</tr>`;
+    const ca = curAmt(it);
+    stack.forEach(g => { g.total += it.total; g.cur += ca; }); grand += it.total; grandCur += ca;
   }
   while(stack.length) close();
-  rows += `<tr class="tot"><td></td><td colspan="7">מחיר כולל</td><td class="num">${money(grand)}</td></tr>`;
+  rows += sumRow('tot', 'מחיר כולל', grandCur, grand);
   return { rows, grand };
 }
 
@@ -638,9 +655,7 @@ function render({ header, fin, items }){
   <div class="html2pdf__page-break"></div>
   <div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <table class="grid items">
-    <thead><tr><th style="width:10%">סעיף</th><th>תיאור</th><th style="width:4.5%">יח'</th>
-      <th style="width:6.8%">כמות חוזה</th><th style="width:6.8%">כמות מצטברת</th><th style="width:5.6%">% תשלום</th><th style="width:6.8%">כמות נוכחית</th>
-      <th style="width:8%">מחיר יח' (₪)</th><th style="width:9.8%">סה"כ מצטבר (₪)</th></tr></thead>
+    <thead><tr>${ITEM_COLS.map(c => `<th${c.w ? ` style="width:${c.w}%"` : ''}>${c.h}</th>`).join('')}</tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
   $('doc').contentEditable = 'true';
