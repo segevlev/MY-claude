@@ -272,7 +272,7 @@ function parseInvoice(pages){
   };
   // 1. normalise each raw item, 2. merge fragments that sit side by side on the same line
   const P = pages.map((pg, pi) => {
-    const raw = pg.items.filter(i => i.str && i.str.trim()).map(i => ({ s: fix(i.str, i.dir), x: i.x, y: i.y, w: i.w, r: i.x + i.w }));
+    const raw = pg.items.filter(i => i.str && i.str.trim() && !/^(שח|ש"ח|₪)$/.test(i.str.trim())).map(i => ({ s: fix(i.str, i.dir), x: i.x, y: i.y, w: i.w, r: i.x + i.w }));   // currency marks are dropped: they glue to the amounts next to them
     raw.sort((a,b) => b.y - a.y || a.x - b.x);
     const lines = [];
     for(const it of raw){ const l = lines.find(L => Math.abs(L.y - it.y) < 1.6); if(l) l.items.push(it); else lines.push({ y: it.y, items: [it] }); }
@@ -364,6 +364,17 @@ function parseInvoice(pages){
 
   /* ---- items table ---- */
   const groups = {}, items = []; let grand = 0;
+  const emitRow = r => {
+    const dl = []; r.desc.sort((a,b) => a.p - b.p || b.y - a.y || b.x - a.x).forEach(d => { const l = dl.find(L => L.p === d.p && Math.abs(L.y - d.y) < 1.6); if(l) l.t += ' ' + d.s; else dl.push({ p: d.p, y: d.y, t: d.s }); });
+    const dlt = dl.map(l => l.t);
+    const text = tidy(dlt.join(' '));
+    if(/סה"כ ל/.test(text) && r.v.price === undefined) return;   // subtotal row – recomputed later
+    if(r.v.price === undefined){ if(!groups[r.code]) groups[r.code] = text; return; }
+    let title = text, detail = '';
+    if(dlt.length >= 3 || (dlt.length === 2 && text.length > 140)){ title = tidy(dlt[0]); detail = tidy(dlt.slice(1).join(' ')); }
+    items.push({ code:r.code, title, detail, unit:r.unit, cq:r.v.cq||0, cum:r.v.cum||0, pct:r.v.pct||0, cur:r.v.cur||0, prev:r.v.prev, price:r.v.price||0, total: r.v.total ?? (r.v.cum||0)*(r.v.price||0) });
+  };
+  let carry = null;
   for(const pg of P){
     const hDesc = pg.find(i => i.s === 'תאור' || i.s === 'תיאור'); const hCode = pg.find(i => i.s === 'סעיף');
     if(!hDesc || !hCode) continue;
@@ -381,32 +392,31 @@ function parseInvoice(pages){
     const endItem = pg.find(i => /^מחיר כולל/.test(i.s));
     if(endItem){ const g = pg.find(i => Math.abs(i.y - endItem.y) < 3 && /\d/.test(i.s)); if(g) grand = num(g.s); }
     const body = pg.filter(i => i.y < hDesc.y - 8 && (!endItem || i.y > endItem.y + 3) && i.s !== 'שח');
-    const codes = body.filter(i => i.x > Math.max(C.desc.c, C.code.x - 30) && /^\d+(\.\d+)*$/.test(i.s)).sort((a,b) => b.y - a.y);
-    const rows = codes.map(c => ({ code: c.s, y: c.y, top: c.y, desc: [], unit: '', v: {} }));
+    // A row starts at its top line: every row (item, group, subtotal) has a number there, while in tall rows
+    // the code and unit sit vertically centred. So rows are bands from one top line down to the next.
+    const isCode = i => i.x > Math.max(C.desc.c, C.code.x - 30) && /^\d+(\.\d+)*$/.test(i.s);
+    const inDesc = i => isNum(i.s) ? i.c > descMin : i.r > descMin;
+    const tops = [];
+    for(const i of body) if(isNum(i.s) && !inDesc(i) && !tops.some(t => Math.abs(t - i.y) < 2)) tops.push(i.y);
+    tops.sort((a,b) => b - a);
+    const bands = tops.map((t, k) => ({ top: t, bottom: k + 1 < tops.length ? tops[k+1] : -Infinity, code: '', desc: [], unit: '', v: {} }));
+    const bandOf = y => bands.find(b => y <= b.top + 2 && y > b.bottom + 2);
+    for(const it of body.slice().sort((a,b) => b.y - a.y)){
+      const b = bandOf(it.y) || (carry && tops.length && it.y > tops[0] + 2 ? carry : null); if(!b) continue;
+      if(isCode(it)){ if(!b.code) b.code = it.s; }
+      else if(inDesc(it)) b.desc.push(it);
+      else if(!isNum(it.s)) b.unit = it.s;
+      else { const col = numCols.reduce((x, c) => Math.abs(c.c - it.c) < Math.abs(x.c - it.c) ? c : x); if(b.v[col.role] === undefined) b.v[col.role] = num(it.s); }
+    }
+    if(carry && carry.code) emitRow(carry);
+    carry = null;
+    const rows = bands.filter((b, k) => b.code || k === bands.length - 1);
     if(!rows.length) continue;
-    const nearest = (y, key) => rows.reduce((b, r) => Math.abs(r[key] - y) < Math.abs(b[key] - y) ? r : b);
-    const rest = body.filter(i => !codes.includes(i));
-    const numeric = [];
-    for(const it of rest){
-      if((!isNum(it.s) && it.r > descMin) || (isNum(it.s) && it.c > descMin)){ const r = nearest(it.y, 'y'); r.desc.push(it); r.top = Math.max(r.top, it.y); }
-      else if(!isNum(it.s)){ const r = nearest(it.y, 'y'); r.unit = it.s; }
-      else numeric.push(it);
-    }
-    for(const it of numeric){
-      const col = numCols.reduce((b, c) => Math.abs(c.c - it.c) < Math.abs(b.c - it.c) ? c : b);
-      const r = nearest(it.y, 'top'); r.v[col.role] = num(it.s);
-    }
-    for(const r of rows){
-      const dl = []; r.desc.sort((a,b) => b.y - a.y || b.x - a.x).forEach(d => { const l = dl.find(L => Math.abs(L.y - d.y) < 1.6); if(l) l.t += ' ' + d.s; else dl.push({ y: d.y, t: d.s }); });
-      const dlt = dl.map(l => l.t);
-      const text = tidy(dlt.join(' '));
-      if(/סה"כ ל/.test(text) && r.v.price === undefined) continue;   // subtotal row – recomputed later
-      if(r.v.price === undefined){ if(!groups[r.code]) groups[r.code] = text; continue; }
-      let title = text, detail = '';
-      if(dlt.length >= 3 || (dlt.length === 2 && text.length > 140)){ title = tidy(dlt[0]); detail = tidy(dlt.slice(1).join(' ')); }
-      items.push({ code:r.code, title, detail, unit:r.unit, cq:r.v.cq||0, cum:r.v.cum||0, pct:r.v.pct||0, cur:r.v.cur||0, prev:r.v.prev, price:r.v.price||0, total: r.v.total ?? (r.v.cum||0)*(r.v.price||0) });
-    }
+    rows.slice(0, -1).forEach(emitRow);
+    carry = rows[rows.length - 1];   // may continue at the top of the next page
   }
+
+  if(carry && carry.code) emitRow(carry);
 
   /* ---- payment page ---- */
   const fin = { groups, item_count: items.length, grand_total: grand, payment_rows: [], chg_offset: 0, cumulative: 0, total_pay: 0, vat: 0, total_with_vat: 0, contract_scope: 0, exec_pct: 0, disclaimer: '' };
@@ -439,22 +449,53 @@ function parseInvoice(pages){
 
   /* ---- summary table (טבלה מסכמת): rows as they appear on the payment page, one amount column ---- */
   const op = l => /^סה"כ|^מצטבר (בחשבון זה|נ?ו?כחי)/.test(l) ? '=' : /קודם|קיזוז|ניכוי|עי?כבון|ביטוח|קנס/.test(l) ? '-' : '+';
-  // split one amount column into מצטבר נוכחי / מצטבר קודם / לתקופה נוכחית.
+  // current-period amounts that can be computed from the invoice itself:
+  //  - works: from the detailed BOQ, Σ סכום נוכחי (כמות נוכחית × מחיר יחידה); cumulative = Σ סכום מצטבר
+  //  - indexation: the "התייקרות שוטפת" of this invoice's row in the indexation table
+  const boqCum = items.reduce((t, it) => t + n(it.total), 0), boqCur = items.reduce((t, it) => t + curAmt(it), 0);
+  let idxCur;
+  const idxH = find(/^התייקרות שוטפת/);
+  if(idxH){
+    const row = P[idxH.p].filter(i => i.y < idxH.y && i.x > 520 && i.s === String(doc.seq))[0];   // first column = invoice number
+    if(row){ const nums = P[idxH.p].filter(i => Math.abs(i.y - row.y) < 3 && isNum(i.s) && i !== row).sort((a,b) => a.x - b.x); if(nums.length) idxCur = num(nums[0].s); }
+  }
+  fin.boq_cum = boqCum; fin.boq_cur = boqCur; fin.idx_cur = idxCur;
+  // split one amount column into מצטבר נוכחי / מצטבר קודם / סכום לחשבון חלקי.
   // Rows are cumulative up to the first "קודם" row; that row is the previous cumulative total,
-  // and rows after it (סה"כ לתשלום, מע"מ...) are amounts for the current period.
-  // Per-row previous amounts are only known when the previous total is 0 (first invoice): then prev = 0 and current = cumulative.
-  // Otherwise only the total row right above the "קודם" row is split.
-  const splitRows = list => {
+  // and rows after it (סה"כ לתשלום, מע"מ...) are amounts for this invoice.
+  // A cumulative row's current amount comes from known(); a subtotal (=) is the running sum of the rows above it.
+  // previous = cumulative − current. When the previous total is 0 (first invoice) every row has prev 0, cur = cum.
+  const splitRows = (list, known) => {
     const pi = list.findIndex(r => /קודם/.test(r.label)), prevTotal = pi >= 0 ? list[pi].amount : undefined;
+    let acc = 0, seen = false;   // running sum for subtotals; NaN once a component is unknown
     return list.map((r, i) => {
       const label = /^מע"מ/.test(r.label) ? 'מע"מ' : r.label, o = { label, op: op(r.label) };
       if(pi >= 0 && i === pi) o.prev = r.amount;
       else if(pi >= 0 && i > pi) o.cur = r.amount;
-      else { o.cum = r.amount;
-        if(prevTotal === 0 || (pi >= 0 && i === pi - 1)){ o.prev = prevTotal; o.cur = r.amount - prevTotal; } }   // the total right above "קודם" is what it is subtracted from
+      else {
+        o.cum = r.amount;
+        const k = r.amount === 0 ? 0 : known(r, list);
+        let cur = o.op === '=' ? (k !== undefined ? k : seen && !isNaN(acc) ? acc : undefined) : k;
+        if(cur === undefined && prevTotal === 0) cur = r.amount;
+        if(cur === undefined && pi >= 0 && i === pi - 1) cur = r.amount - prevTotal;   // the total right above "קודם" is what it is subtracted from
+        if(o.op === '=') acc = cur === undefined ? NaN : cur;
+        else acc = cur === undefined ? NaN : acc + (o.op === '-' ? -cur : cur);
+        seen = true;
+        if(cur !== undefined){ o.cur = Math.round(cur * 100) / 100; o.prev = Math.round((r.amount - cur) * 100) / 100; }
+      }
       return o;
     });
   };
+  const worksRow = r => /עבודות לפי חוזה|^סעיפי חוזה/.test(r.label);
+  const mainKnown = (r, list) => {
+    if(worksRow(r)){   // the BOQ is all of the works only when the other works rows (above the first subtotal) are 0
+      const first = list.findIndex(x => op(x.label) === '='), works = list.slice(0, first < 0 ? list.length : first);
+      return works.every(x => x === r || x.amount === 0) ? boqCur : undefined;
+    }
+    if(/התייקרו/.test(r.label) && op(r.label) === '+') return idxCur;
+  };
+  fin.summary_rows = splitRows(fin.payment_rows, mainKnown);
+  const curByLabel = Object.fromEntries(fin.summary_rows.filter(r => r.cur !== undefined).map(r => [r.label, r.cur]));
   const vr = fin.payment_rows.find(r => /^מע"מ/.test(r.label));
   const indexed = val(/צמוד למדד:?\s*(.+)/), base = find(/מדד בסיס/);
   const sinfo = {};
@@ -466,9 +507,9 @@ function parseInvoice(pages){
     const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = m[1]; }
   fin.summary = {
     info: sinfo,
-    rows: splitRows(fin.payment_rows),
+    rows: fin.summary_rows,
     vat_rate: vr && /([\d.]+)%/.test(vr.label) ? parseFloat(vr.label.match(/([\d.]+)%/)[1]) : undefined,
-    offset: splitRows(fin.offset_rows || [])
+    offset: splitRows(fin.offset_rows || [], r => curByLabel[r.label])
   };
 
   if(!items.length) throw new Error('לא נמצאה טבלת סעיפים בקובץ. ודאו שזה חשבון חלקי שהופק מהמערכת (ולא סריקה).');
@@ -577,7 +618,7 @@ const SUM_GROUPS = [
   [/התייקרו/, 'התייקרויות'],
   [/סעיפי חוזה|עבודות לפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
-const SUM_COLS = [['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['cur','סכום לתקופה נוכחית (₪)','בחשבון זה']];
+const SUM_COLS = [['cur','סכום לחשבון חלקי (₪)','בחשבון זה'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם']];   // RTL: first = rightmost
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
 function buildSummary(s){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
@@ -692,6 +733,14 @@ function runChecks({ header, fin, items }){
     const exp = (n(fin.total_this) || n(fin.cumulative)) + ded - prev;   // סה"כ חשבון זה already includes indexation
     if(n(fin.total_pay) && !near(exp, n(fin.total_pay), 1))
       w.push(`מצטבר פחות קיזוזים וחשבון קודם (${money(exp)}) אינו שווה ל"סה"כ לתשלום" (${money(fin.total_pay)}).`);
+  }
+  const sr = fin.summary?.rows || [], spi = sr.findIndex(r => /קודם/.test(r.label));
+  if(spi > 0){   // the split computed from the BOQ must agree with the invoice's own totals
+    const t = sr[spi - 1], pay = sr.slice(spi + 1).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));
+    if(t.prev !== undefined && !near(t.prev, n(sr[spi].prev), 1))
+      w.push(`המצטבר הקודם שחושב מכתב הכמויות (${money(t.prev)}) שונה מ"${esc(sr[spi].label)}" בחשבון (${money(sr[spi].prev)}).`);
+    if(pay && t.cur !== undefined && !near(t.cur, n(pay.cur), 1))
+      w.push(`הסכום לחשבון חלקי שחושב מכתב הכמויות (${money(t.cur)}) שונה מ"${esc(pay.label)}" בחשבון (${money(pay.cur)}).`);
   }
   if(n(fin.total_pay) && n(fin.vat) && !near(n(fin.total_pay)+n(fin.vat), n(fin.total_with_vat), 0.05))
     w.push(`סה"כ לתשלום + מע"מ אינו שווה לסה"כ כולל מע"מ.`);
