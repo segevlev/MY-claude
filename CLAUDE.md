@@ -20,7 +20,7 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
 
 ## Items table (פירוט סעיפים)
-Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעולה, תאור→תאור פעולה, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
+Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
 - **Computed:** `סכום נוכחי` = כמות נוכחית × מחיר יחידה (`curAmt`). It is also summed in subtotals.
 - **Empty for now:** `כמות חוזה מקורית` has a header only. The user will define its logic later.
 
