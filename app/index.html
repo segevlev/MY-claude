@@ -84,6 +84,7 @@ button,input{font-family:inherit}
 .kv td:last-child{font-weight:bold}
 .missing{color:#b0b8c4;font-weight:normal;font-style:italic}
 .exporting .missing{color:transparent}
+#doc.exporting *{letter-spacing:.01px}   /* makes html2canvas place each character where the browser laid it out – otherwise RTL text loses its spaces */
 .kpis{display:flex;gap:8px;margin-top:14px}
 .kpi{flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px}
 .kpi .l{font-size:8pt;color:var(--mute)}
@@ -772,13 +773,14 @@ $('dl').onclick = async () => {
   if(typeof html2pdf === 'undefined'){ exMsg('רכיב יצירת ה-PDF לא נטען (ייתכן שחסום ברשת). רעננו את הדף ונסו שוב.', true); return; }
   const btn = $('dl'); btn.disabled = true; btn.textContent = 'מכין PDF...';
   const el = $('doc'); el.contentEditable = 'false'; el.classList.add('exporting');
+  const sx = window.scrollX, sy = window.scrollY; window.scrollTo(0, 0);   // html2canvas renders blank pages when the window is scrolled
   const code = (lastData?.header?.doc?.account_code || 'invoice').replace(/[^\w-]/g,'');
   const fname = `invoice_${code}.pdf`;
   try{
     const pdf = await html2pdf().set({
       margin:[14,13,16,13], filename:fname,
       image:{type:'jpeg',quality:0.96},
-      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,scrollX:0,scrollY:0},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
       pagebreak:{mode:['css','legacy'], avoid:['tr','.kpis','.sign','.note']}
     }).from(el).toPdf().get('pdf');
@@ -798,7 +800,7 @@ $('dl').onclick = async () => {
       <a class="btn" href="${blobUrl}" target="_blank" rel="noopener">פתיחה בלשונית חדשה</a>`, false);
   }catch(e){
     exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
-  }finally{ el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
+  }finally{ window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
 };
 
 /* test hook */

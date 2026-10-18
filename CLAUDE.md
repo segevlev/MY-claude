@@ -22,6 +22,8 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 4. **Render**: `render(data)` + `buildItems` (hierarchical code prefixes → מבנה/פרק/תת פרק headers and subtotals). The document is `contentEditable`.
 5. **Checks**: `runChecks` runs these validations: qty×price per line, sum of lines vs "מחיר כולל", payment math, VAT, execution %, missing fields, dates, and non-integer quantities in unit items.
 6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
+   - **Scroll:** the window is scrolled to the top during export, with `scrollX/scrollY: 0`. html2canvas renders blank pages when the window is scrolled.
+   - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
 
 ## Items table (פירוט סעיפים)
 Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
