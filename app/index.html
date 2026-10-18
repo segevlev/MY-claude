@@ -74,7 +74,8 @@ button,input{font-family:inherit}
 .cdet>span{justify-self:start;text-align:right}
 .d-proj{margin:16px 0 0;font-size:22pt;line-height:1.2;color:var(--navy);font-weight:bold}
 .d-title{margin:10px 0 12px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
-.d-title h2{font-size:15pt;margin:0}
+.d-title h2{font-size:13.5pt;margin:0;line-height:1.35}
+.d-title h2 .nw{white-space:nowrap}
 .tag{background:var(--amber);color:var(--navy);font-weight:bold;padding:4px 10px;border-radius:3px;font-size:10pt;white-space:nowrap}
 #doc h4{font-size:10.5pt;color:var(--navy);margin:14px 0 6px;padding-right:7px;border-right:4px solid var(--amber)}
 .two{display:flex;gap:12px}.two>div{flex:1;min-width:0}
@@ -615,10 +616,10 @@ function render({ header, fin, items }){
       ['עוסק מורשה', L(c.vat_id)], ['תיק ניכויים', L(c.deductions_file)] ])}</div>
   </div>
   <h1 class="d-proj">פרויקט ${d.project_name ? esc(d.project_name) : '<span class="missing">שם הפרויקט לא זוהה – לחצו להשלמה</span>'}</h1>
-  <div class="d-title"><h2>חשבון חלקי מספר ${esc(d.seq)} לקבלן משנה ${T(k.name)}</h2></div>
+  <div class="d-title"><h2>חשבון חלקי מספר ${esc(d.seq)} לקבלן ${T(k.name)} <span class="nw">לחודש ביצוע ${d.month ? L(d.month) : '<span class="missing">לא זוהה</span>'}</span></h2></div>
   <div class="two">
     <div><h4>פרטי החשבון</h4><table class="kv">${kv([
-      ['מספר חוזה', L(d.contract_code)], ['מספר חשבון חלקי', L(d.account_code)], ['חודש ביצוע', L(d.month)],
+      ['מספר חוזה', L(d.contract_code)], ['מספר חשבון חלקי', L(d.account_code)],
       ['תאריך הפקה', L(d.date)], ['תאריך תשלום מחושב', L(d.payment_date)] ])}</table></div>
     <div><h4>פרטי הקבלן</h4><table class="kv">${kv([
       ['שם הקבלן', T(k.name)], ['מס\' קבלן באלקטרה', L(k.electra_no)], ['כתובת', T(k.address)],
