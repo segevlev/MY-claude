@@ -439,8 +439,22 @@ function parseInvoice(pages){
 
   /* ---- summary table (טבלה מסכמת): rows as they appear on the payment page, one amount column ---- */
   const op = l => /^סה"כ|^מצטבר (בחשבון זה|נ?ו?כחי)/.test(l) ? '=' : /קודם|קיזוז|ניכוי|עי?כבון|ביטוח|קנס/.test(l) ? '-' : '+';
-  const sumRow = r => { const vat = /^מע"מ/.test(r.label);
-    return { label: vat ? 'מע"מ' : r.label, op: op(r.label), amt: r.amount }; };
+  // split one amount column into מצטבר נוכחי / מצטבר קודם / לתקופה נוכחית.
+  // Rows are cumulative up to the first "קודם" row; that row is the previous cumulative total,
+  // and rows after it (סה"כ לתשלום, מע"מ...) are amounts for the current period.
+  // Per-row previous amounts are only known when the previous total is 0 (first invoice): then prev = 0 and current = cumulative.
+  // Otherwise only the total row right above the "קודם" row is split.
+  const splitRows = list => {
+    const pi = list.findIndex(r => /קודם/.test(r.label)), prevTotal = pi >= 0 ? list[pi].amount : undefined;
+    return list.map((r, i) => {
+      const label = /^מע"מ/.test(r.label) ? 'מע"מ' : r.label, o = { label, op: op(r.label) };
+      if(pi >= 0 && i === pi) o.prev = r.amount;
+      else if(pi >= 0 && i > pi) o.cur = r.amount;
+      else { o.cum = r.amount;
+        if(prevTotal === 0 || (pi >= 0 && i === pi - 1)){ o.prev = prevTotal; o.cur = r.amount - prevTotal; } }   // the total right above "קודם" is what it is subtracted from
+      return o;
+    });
+  };
   const vr = fin.payment_rows.find(r => /^מע"מ/.test(r.label));
   const indexed = val(/צמוד למדד:?\s*(.+)/), base = find(/מדד בסיס/);
   const sinfo = {};
@@ -452,9 +466,9 @@ function parseInvoice(pages){
     const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = m[1]; }
   fin.summary = {
     info: sinfo,
-    rows: fin.payment_rows.map(sumRow),
+    rows: splitRows(fin.payment_rows),
     vat_rate: vr && /([\d.]+)%/.test(vr.label) ? parseFloat(vr.label.match(/([\d.]+)%/)[1]) : undefined,
-    offset: (fin.offset_rows || []).map(sumRow)
+    offset: splitRows(fin.offset_rows || [])
   };
 
   if(!items.length) throw new Error('לא נמצאה טבלת סעיפים בקובץ. ודאו שזה חשבון חלקי שהופק מהמערכת (ולא סריקה).');
@@ -563,7 +577,7 @@ const SUM_GROUPS = [
   [/התייקרו/, 'התייקרויות'],
   [/סעיפי חוזה|עבודות לפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
-const SUM_COLS = [['cur','סכום שוטף (₪)','בחשבון זה'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['amt','סכום (₪)','']];
+const SUM_COLS = [['cum','מצטבר נוכחי (₪)','כולל חשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['cur','סכום לתקופה נוכחית (₪)','בחשבון זה']];
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
 function buildSummary(s){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
@@ -587,7 +601,7 @@ function buildSummary(s){
     const vat = /^מע"מ/.test(r.label);
     const label = vat ? `מע"מ${has(s.vat_rate) ? ` (${L(qty(s.vat_rate, 2) + '%')})` : template ? ' (<span class="missing">%</span>)' : ''}` : T(r.label);
     const op = OP_NAME[r.op] ? r.op : '';
-    const cells = cols.map(([k]) => vat && k !== 'cur' && k !== 'amt' && !has(r[k]) ? '<td></td>'
+    const cells = cols.map(([k]) => vat && k !== 'cur' && !has(r[k]) ? '<td></td>'
       : `<td class="num${n(r[k]) < 0 ? ' neg' : ''}">${has(r[k]) ? money(r[k]) : template ? dash : ''}</td>`).join('');
     return `<tr class="${cls}"><td>${label}</td><td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>${cells}</tr>`;
   };
