@@ -42,7 +42,7 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
   - **Other rows:** rows with amount 0 → 0. Subtotals (=) are running sums. The previous amount is cum − cur.
   - **Fallbacks:** when the previous total is 0, prev = 0. Otherwise the total right above "קודם" is split by the previous total.
   - **Checks:** `runChecks` compares the computed previous total and invoice amount with the invoice's "מצטבר בחשבון קודם" and "סה"כ לתשלום". The main column becomes `rows`, the חו"ג offset table becomes `offset`, plus contract scope, % execution and index linkage. The ERP writes gershayim as a single quote (סה'כ), which is normalised to ".
-- **Columns:** right to left: סכום לחשבון חלקי, מצטבר נוכחי, מצטבר קודם (`SUM_COLS`). Only columns that have data are shown.
+- **Columns:** right to left: סכום לחשבון חלקי, מצטבר קודם, מצטבר נוכחי (`SUM_COLS`), so it reads חשבון + קודם = נוכחי. Only columns that have data are shown.
 
 ## Notes
 - The logo is stored via `window.storage` (the Claude-artifact API). The local fallback shim at the top of the script maps it to `localStorage`.
