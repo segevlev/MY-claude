@@ -26,6 +26,13 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
    - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
    - **Repeated header:** `paginateItems` splits the items table into page-sized tables, each with its own header and with page breaks between them. A group heading moves with the row after it. The table is restored after the export. The print dialog repeats `thead` natively.
 
+## Number format and header
+- **Numbers:** decimals are shown only when the number has them (`money`: 1,267 / 7.20; `qty`: up to 3 decimals, none when whole).
+- **Header:** the company header shows no branch (סניף) line.
+
+## Structures table (ריכוז לפי מבנה)
+This table comes right before "פירוט סעיפי החשבון", on the same page. It has one row per top-level structure ("סה"כ למבנה: <code> <name>", with its cumulative amount) and a "סה"כ" row. `buildItems` collects the rows (`structures`) while it builds the items table.
+
 ## Items table (פירוט סעיפים)
 Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
 - **Computed:** `סכום נוכחי` = כמות נוכחית × מחיר יחידה (`curAmt`). It is also summed in subtotals.

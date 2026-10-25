@@ -127,6 +127,8 @@ button,input{font-family:inherit}
 .sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
 .sumt tr.final td.op{color:var(--amber)}
 .sumt tr.quiet td{font-size:9pt;color:#55606f;background:#fff}
+.struct td{font-weight:bold;background:var(--soft);padding:6px 9px}
+.struct tr.grand td{background:#fbeccf}
 .items{font-size:7.8pt}
 .items th{padding:4px 2px;font-size:7.2pt;line-height:1.2;vertical-align:bottom}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:7.4pt;padding:4px 3px}
@@ -223,8 +225,9 @@ const T = s => { const str = String(s ?? ''); let out = '', last = 0;
   return out + esc(str.slice(last)); };
 const L = s => s ? `<span class="ltr">${esc(s)}</span>` : '';
 const n = v => { const x = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/,/g,'')); return isFinite(x) ? x : 0; };
-const money = v => n(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const qty = (v,d=3) => n(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+// decimals only when the number has them: 1,267 / 7.20 / 3.6
+const money = v => { const x = Math.round(n(v) * 100) / 100; return x.toLocaleString('en-US', Number.isInteger(x) ? {maximumFractionDigits:0} : {minimumFractionDigits:2,maximumFractionDigits:2}); };
+const qty = (v,d=3) => n(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:d});
 const parseDate = s => { const m = String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(!m) return null; let y=+m[3]; if(y<100) y+=2000; return new Date(y, m[2]-1, +m[1]); };
 
 /* ---------- file pick ---------- */
@@ -619,12 +622,13 @@ const ITEM_COLS = [
 ];
 const curAmt = it => n(it.cur) * n(it.price);   // סכום נוכחי = כמות נוכחית × מחיר יחידה
 function buildItems(items, groups){
-  let rows = '', stack = [], grand = 0, grandCur = 0;
+  let rows = '', stack = [], grand = 0, grandCur = 0; const structures = [];
   const N = ITEM_COLS.length, lead = N - 3;   // label spans up to the two amount columns
   const sumRow = (cls, label, cur, total) => `<tr class="${cls}"><td></td><td colspan="${lead}">${label}</td><td class="num">${money(cur)}</td><td class="num">${money(total)}</td></tr>`;
   const close = () => {
     const g = stack.pop(), d = stack.length+1, cls = 't'+Math.min(d,3);
     rows += sumRow(cls, `סה"כ ל${LEVEL[Math.min(d,3)]} ${L(g.code)}: ${esc(g.name)}`, g.cur, g.total);
+    if(d === 1) structures.push(g);
   };
   for(const it of items){
     const parts = it.code.split('.'), pref = [];
@@ -642,7 +646,7 @@ function buildItems(items, groups){
   }
   while(stack.length) close();
   rows += sumRow('tot', 'מחיר כולל', grandCur, grand);
-  return { rows, grand };
+  return { rows, grand, structures };
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
@@ -808,15 +812,15 @@ function buildSummary(s){
 
 function render({ header, fin, items }){
   const c = header.company||{}, d = header.doc||{}, k = header.contractor||{};
-  const { rows, grand } = buildItems(items, fin.groups||{});
+  const { rows, grand, structures } = buildItems(items, fin.groups||{});
   const pct = Math.max(0, Math.min(100, n(fin.exec_pct)));
   const kv = arr => arr.map(r=>`<tr><td>${r[0]}</td><td>${r[1] || '<span class="missing">לא זוהה – לחצו להשלמה</span>'}</td></tr>`).join('');
   const cd = arr => arr.filter(r=>r[1]).map(r=>`<b>${r[0]}</b><span>${r[1]}</span>`).join('');
 
 
   const brand = logoData
-    ? `<div class="brand"><img src="${logoData}" alt=""><div><div class="bname" style="font-size:16pt">${esc(c.name)}</div><div class="bsub">${esc(c.branch)}</div></div></div>`
-    : `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><div class="bname">${esc(c.name)}</div><div class="bsub">${esc(c.branch)}</div></div></div>`;
+    ? `<div class="brand"><img src="${logoData}" alt=""><div><div class="bname" style="font-size:16pt">${esc(c.name)}</div></div></div>`
+    : `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><div class="bname">${esc(c.name)}</div></div></div>`;
 
   $('doc').innerHTML = `
   <div class="d-top">${brand}
@@ -846,7 +850,13 @@ function render({ header, fin, items }){
 
 
   <div class="html2pdf__page-break"></div>
-  <div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+  ${structures.length ? `<div class="mini"><b>ריכוז לפי מבנה</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+  <table class="grid struct">
+    <thead><tr><th>מבנה</th><th style="width:26%">סכום מצטבר מבנה (₪)</th></tr></thead>
+    <tbody>${structures.map(g => `<tr><td>סה"כ למבנה: ${L(g.code)} ${T(g.name)}</td><td class="num">${money(g.total)}</td></tr>`).join('')}
+      <tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr></tbody>
+  </table>` : ''}
+  <div class="mini" style="margin-top:18px"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <table class="grid items">
     <thead><tr>${ITEM_COLS.map(c => `<th${c.w ? ` style="width:${c.w}%"` : ''}>${c.h}</th>`).join('')}</tr></thead>
     <tbody>${rows}</tbody>

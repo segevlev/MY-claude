@@ -43,15 +43,16 @@ for(const [name, summary] of Object.entries(fixtures)){
     'columns right to left: תיאור, סכום לחשבון חלקי, סימן, מצטבר קודם, מצטבר נוכחי');
   ok(at('פחות התאמת התייקרות') >= 0 && at('פחות התאמת התייקרות') < at('סה"כ כולל התייקרות'),
     'indexation adjustment sits ABOVE "סה"כ כולל התייקרות"');
-  ok(row('סה"כ כולל התייקרות').cells[4] === '1,030.00', 'indexation subtotal shown includes the adjustment (1,050 − 20)');
+  ok(row('סה"כ כולל התייקרות').cells[4] === '1,030', 'indexation subtotal shown includes the adjustment (1,050 − 20)');
   ok(t.rows.every(r => r.cls === 'sg' || /מע"מ/.test(r.cells[0]) || r.cells[1] !== ''), 'no row without a סכום לחשבון חלקי');
-  ok(row('פחות התאמת התייקרות').cells[1] === '0.00' && row('פחות התאמת התייקרות').cells[3] === row('פחות התאמת התייקרות').cells[4],
+  ok(row('פחות התאמת התייקרות').cells[1] === '0' && row('פחות התאמת התייקרות').cells[3] === row('פחות התאמת התייקרות').cells[4],
     'unknown current amount → 0, previous = current cumulative');
   ok(at('עכבון') > at('קיזוזים וניכויים') && at('עכבון') < at('סיכום'), 'retention is its own block, after the deductions and before סיכום');
   ok(at('סה"כ כולל עכבון') > at('פחות עכבון') && at('סה"כ כולל עכבון') < at('סיכום'), 'retention block closes with "סה"כ כולל עכבון"');
   ok(at('סה"כ חשבון זה') < 0, '"סה"כ חשבון זה" is not shown');
   ok(tot && tot.cls === 'final' && tot.cells.slice(1).every(c => c !== ''), 'the "סה"כ" row has every column filled' + (tot ? ' [' + tot.cells.join(' | ') + ']' : ''));
   ok(at('סה"כ לתשלום') < 0, 'the total reads "סה"כ", not "סה"כ לתשלום"');
+  ok(lab.includes('פחות התאמת התייקרות מצטברת') && row('פחות התאמת התייקרות').cells[1] === '0', 'whole numbers have no decimals (0, not 0.00)');
   ok(!lab.slice(at('סיכום')).some(l => /קודם/.test(l)), 'no "מצטבר … קודם" rows in סיכום (the "סה"כ" row shows the previous amount)');
   ok(at('מצטבר לאחר קיזוזים') < 0 || at('מצטבר לאחר קיזוזים') < at('עכבון'), 'the deductions subtotal reads "מצטבר לאחר קיזוזים"');
 }
