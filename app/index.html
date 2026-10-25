@@ -791,12 +791,43 @@ $('pr').onclick = () => {
   setTimeout(()=>exMsg('אם חלון ההדפסה לא נפתח, הדפדפן חוסם הדפסה בתוך החלון הזה. השתמשו בכפתור "הורד PDF".', false), 1200);
 };
 
+/* html2pdf renders one long image and slices it into pages, so a table header cannot repeat by itself.
+   For the export the items table is split into page-sized tables, each with its own header; returns a restore function. */
+function paginateItems(el){
+  const tbl = el.querySelector('table.items'); if(!tbl || !tbl.tHead || !tbl.tBodies[0]) return () => {};
+  const pageH = el.offsetWidth / 184 * 267 - 8;   // A4 content box (210×297 mm minus the 13/13/14/16 mm margins) in CSS px, minus slack
+  const brk = [...el.querySelectorAll('.html2pdf__page-break')].pop();   // the items section starts on a new page
+  const top0 = brk ? brk.getBoundingClientRect().bottom : el.getBoundingClientRect().top;
+  const headH = tbl.tHead.getBoundingClientRect().height, hOf = r => r.getBoundingClientRect().height;
+  const chunks = [[]];
+  let used = tbl.getBoundingClientRect().top - top0 + headH;
+  for(const tr of tbl.tBodies[0].rows){
+    const cur = chunks[chunks.length - 1];
+    if(used + hOf(tr) > pageH && cur.length){
+      const moved = [];   // a group heading stays with the row after it
+      while(cur.length > 1 && /^s\d/.test(cur[cur.length - 1].className)) moved.unshift(cur.pop());
+      chunks.push(moved); used = headH + moved.reduce((t, r) => t + hOf(r), 0);
+    }
+    chunks[chunks.length - 1].push(tr); used += hOf(tr);
+  }
+  if(chunks.length < 2) return () => {};
+  const box = document.createElement('div');
+  chunks.forEach((rows, i) => {
+    if(i){ const b = document.createElement('div'); b.className = 'html2pdf__page-break'; box.appendChild(b); }
+    const t = tbl.cloneNode(false), tb = document.createElement('tbody');
+    t.appendChild(tbl.tHead.cloneNode(true)); rows.forEach(r => tb.appendChild(r.cloneNode(true))); t.appendChild(tb); box.appendChild(t);
+  });
+  tbl.replaceWith(box);
+  return () => box.replaceWith(tbl);
+}
+
 $('dl').onclick = async () => {
   exMsg('');
   if(typeof html2pdf === 'undefined'){ exMsg('רכיב יצירת ה-PDF לא נטען (ייתכן שחסום ברשת). רעננו את הדף ונסו שוב.', true); return; }
   const btn = $('dl'); btn.disabled = true; btn.textContent = 'מכין PDF...';
   const el = $('doc'); el.contentEditable = 'false'; el.classList.add('exporting');
   const sx = window.scrollX, sy = window.scrollY; window.scrollTo(0, 0);   // html2canvas renders blank pages when the window is scrolled
+  const unpaginate = paginateItems(el);
   const code = (lastData?.header?.doc?.account_code || 'invoice').replace(/[^\w-]/g,'');
   const fname = `invoice_${code}.pdf`;
   try{
@@ -823,7 +854,7 @@ $('dl').onclick = async () => {
       <a class="btn" href="${blobUrl}" target="_blank" rel="noopener">פתיחה בלשונית חדשה</a>`, false);
   }catch(e){
     exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
-  }finally{ window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
+  }finally{ unpaginate(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
 };
 
 /* test hook */

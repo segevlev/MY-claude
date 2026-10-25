@@ -24,6 +24,7 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
    - **Scroll:** the window is scrolled to the top during export, with `scrollX/scrollY: 0`. html2canvas renders blank pages when the window is scrolled.
    - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
+   - **Repeated header:** `paginateItems` splits the items table into page-sized tables, each with its own header and with page breaks between them. A group heading moves with the row after it. The table is restored after the export. The print dialog repeats `thead` natively.
 
 ## Items table (פירוט סעיפים)
 Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
