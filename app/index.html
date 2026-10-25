@@ -852,9 +852,9 @@ function render({ header, fin, items }){
   <div class="html2pdf__page-break"></div>
   ${structures.length ? `<div class="mini"><b>ריכוז לפי מבנה</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <table class="grid struct">
-    <thead><tr><th>מבנה</th><th style="width:26%">סכום מצטבר מבנה (₪)</th></tr></thead>
-    <tbody>${structures.map(g => `<tr><td>סה"כ למבנה: ${L(g.code)} ${T(g.name)}</td><td class="num">${money(g.total)}</td></tr>`).join('')}
-      <tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr></tbody>
+    <thead><tr><th>מבנה</th><th style="width:22%">סכום נוכחי מבנה (₪)</th><th style="width:22%">סכום מצטבר מבנה (₪)</th></tr></thead>
+    <tbody>${structures.map(g => `<tr><td>סה"כ למבנה: ${L(g.code)} ${T(g.name)}</td><td class="num">${money(g.cur)}</td><td class="num">${money(g.total)}</td></tr>`).join('')}
+      <tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.cur, 0))}</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr></tbody>
   </table>` : ''}
   <div class="mini" style="margin-top:18px"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <table class="grid items">

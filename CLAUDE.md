@@ -31,7 +31,7 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 - **Header:** the company header shows no branch (סניף) line.
 
 ## Structures table (ריכוז לפי מבנה)
-This table comes right before "פירוט סעיפי החשבון", on the same page. It has one row per top-level structure ("סה"כ למבנה: <code> <name>", with its cumulative amount) and a "סה"כ" row. `buildItems` collects the rows (`structures`) while it builds the items table.
+This table comes right before "פירוט סעיפי החשבון", on the same page. It has one row per top-level structure ("סה"כ למבנה: <code> <name>", with its current amount, Σ סכום נוכחי, and its cumulative amount) and a "סה"כ" row. `buildItems` collects the rows (`structures`) while it builds the items table.
 
 ## Items table (פירוט סעיפים)
 Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
