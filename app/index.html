@@ -553,9 +553,9 @@ function parseInvoice(pages){
   if(fin.contract_scope) sinfo.scope = fin.contract_scope;
   if(fin.exec_pct) sinfo.exec_pct = fin.exec_pct;
   if(indexed){ const m = tidy(indexed).match(/^(.*?)\s*([\d.]+)\s*-\s*(\d{1,2}\/\d{2})$/);   // "מדד הבניה ש.קיץ 109.4000-7/11"
-    if(m){ sinfo.index = m[1]; sinfo.index_base = `${m[2]} (${m[3]})`; } else sinfo.index = tidy(indexed); }
+    if(m){ sinfo.index = m[1]; sinfo.index_base = `${qty(parseFloat(m[2]), 4)} (${m[3]})`; } else sinfo.index = tidy(indexed); }
   if(base && !sinfo.index_base){ const bl = P[base.p].filter(i => Math.abs(i.y - base.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' ');
-    const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = m[1]; }
+    const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = qty(parseFloat(m[1]), 4); }
   const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
   fin.summary = {
     info: sinfo,
@@ -842,7 +842,7 @@ function render({ header, fin, items }){
   <div class="kpis">
     <div class="kpi"><div class="l">מצטבר בחשבון זה</div><div class="v num">₪ ${money(fin.cumulative||grand)}</div></div>
     <div class="kpi main"><div class="l">לתשלום (לפני מע"מ)</div><div class="v num">₪ ${money(fin.total_pay)}</div></div>
-    <div class="kpi"><div class="l">ביצוע מתוך היקף חוזה ${L(money(fin.contract_scope)+' ₪')}</div><div class="v">${n(fin.exec_pct).toFixed(2)}%</div><div class="pbar"><span style="width:${pct}%"></span></div></div>
+    <div class="kpi"><div class="l">ביצוע מתוך היקף חוזה ${L(money(fin.contract_scope)+' ₪')}</div><div class="v">${qty(fin.exec_pct, 2)}%</div><div class="pbar"><span style="width:${pct}%"></span></div></div>
   </div>
   ${buildSummary(fin.summary || {})}
   ${fin.disclaimer ? `<div class="note">${esc(fin.disclaimer)}</div>` : ''}
@@ -854,7 +854,7 @@ function render({ header, fin, items }){
   <table class="grid struct">
     <thead><tr><th>מבנה</th><th style="width:22%">סכום נוכחי מבנה (₪)</th><th style="width:22%">סכום מצטבר מבנה (₪)</th></tr></thead>
     <tbody>${structures.map(g => `<tr><td>סה"כ למבנה: ${L(g.code)} ${T(g.name)}</td><td class="num">${money(g.cur)}</td><td class="num">${money(g.total)}</td></tr>`).join('')}
-      <tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.cur, 0))}</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr></tbody>
+      ${structures.length > 1 ? `<tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.cur, 0))}</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr>` : ''}</tbody>
   </table>` : ''}
   <div class="mini" style="margin-top:18px"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
   <table class="grid items">
@@ -894,7 +894,7 @@ function runChecks({ header, fin, items }){
   if(n(fin.total_pay) && n(fin.vat) && !near(n(fin.total_pay)+n(fin.vat), n(fin.total_with_vat), 0.05))
     w.push(`סה"כ לתשלום + מע"מ אינו שווה לסה"כ כולל מע"מ.`);
   if(n(fin.contract_scope) && n(fin.exec_pct) && !near(grand/n(fin.contract_scope)*100, n(fin.exec_pct), 0.02))
-    w.push(`אחוז הביצוע (${n(fin.exec_pct)}%) אינו תואם לחישוב (${(grand/n(fin.contract_scope)*100).toFixed(2)}%).`);
+    w.push(`אחוז הביצוע (${n(fin.exec_pct)}%) אינו תואם לחישוב (${qty(grand/n(fin.contract_scope)*100, 2)}%).`);
   const need = { 'פרויקט':header.doc?.project_name, 'מס\' חשבון חלקי':header.doc?.account_code, 'מס\' חוזה':header.doc?.contract_code, 'תאריך הפקה':header.doc?.date,
     'תנאי תשלום':header.doc?.payment_terms, 'תאריך תשלום':header.doc?.payment_date, 'שם הקבלן':header.contractor?.name, 'מס\' קבלן':header.contractor?.electra_no, 'כתובת הקבלן':header.contractor?.address };
   const miss = Object.keys(need).filter(k => !need[k]);
