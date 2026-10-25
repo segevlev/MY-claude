@@ -36,7 +36,11 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
 - **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.
 - **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
 - **Blocks:** blocks (עבודות / התייקרויות / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
-  - **Indexation rows:** any row whose text is about indexation (`IDX_RE`: התייקרות / התיקרות / הצמדה / מדד, but not "לחישוב", the payable or VAT) goes to התייקרויות, before that block's subtotals. This includes offsets and exceptions.
+  - **Indexation rows:** any row whose text is about indexation (`IDX_RE`: התייקרות / התיקרות / הצמדה / מדד, but not "לחישוב", the payable or VAT) goes to התייקרויות, in the invoice's order. This includes offsets and exceptions.
+  - **Indexation adjustment:** an adjustment the invoice subtracts after "סה"כ כולל התייקרות" stays after it.
+  - **Retention:** retention (עכבון) is its own block, last before סיכום.
+  - **Deductions subtotal:** the block's last `=` row is labelled "מצטבר לאחר קיזוזים" and excludes retention the invoice had already subtracted, so it plus retention = "סה"כ".
+  - **Payable:** the payable from the חו"ג table, which is after the offsets, replaces the main table's.
   - **Block order:** blocks are rendered in the fixed order `SUM_ORDER`, so all deductions sit above the payable total.
   - **Offset rows:** the חו"ג offset rows are merged into the main table right after the "קודם" row, and rows that repeat a main label are dropped.
   - **Signs:** the + / − / = column sits between סכום לחשבון חלקי and the cumulative columns.
@@ -48,6 +52,12 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
   - **Other rows:** rows with amount 0 → 0.
   - **Solving from subtotals:** each subtotal (=) equals the subtotal before it plus the rows between them. When exactly one value in such a segment is unknown, it is solved, repeated until nothing changes. Two subtotals in a row with the same amount share the current amount. The previous amount is cum − cur.
   - **Signs:** a deduction already written as a negative amount is added as is.
+  - **Known current amounts:**
+    - a row whose cumulative equals the BOQ total (e.g. the works subtotal) gets `boq_cur`;
+    - a percentage row (e.g. "פחות עכבון (5.00%)") is that % of the current amount of the subtotal above it, when the cumulative amounts agree;
+    - a current-period row naming its cumulative ("… חשבון נוכחי (מצטבר: 431 003.37)") gives that row's current amount and is then dropped.
+  - **Limit:** if two rows in one segment are still unknown, only their sum is determined and they stay blank.
+  - **Deductions:** a label starting with "פחות" is a deduction.
   - **Fallbacks:** when the previous total is 0, prev = 0. Otherwise the total right above "קודם" is split by the previous total.
   - **Checks:** `runChecks` compares the computed previous total and invoice amount with the invoice's "מצטבר בחשבון קודם" and "סה"כ לתשלום". The main column becomes `rows`, the חו"ג offset table becomes `offset`, plus contract scope, % execution and index linkage. The ERP writes gershayim as a single quote (סה'כ), which is normalised to ".
 - **Columns:** right to left: סכום לחשבון חלקי, מצטבר קודם, מצטבר נוכחי (`SUM_COLS`), so it reads חשבון + קודם = נוכחי. Only columns that have data are shown.

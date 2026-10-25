@@ -449,7 +449,7 @@ function parseInvoice(pages){
   const dis = find(/אינו מהווה|מוקלד/); if(dis) fin.disclaimer = dis.s;
 
   /* ---- summary table (טבלה מסכמת): rows as they appear on the payment page, one amount column ---- */
-  const op = l => /^סה"כ|^מצטבר (בחשבון זה|נ?ו?כחי)/.test(l) ? '=' : /קודם|קיזוז|ניכוי|עי?כבון|ביטוח|קנס/.test(l) ? '-' : '+';
+  const op = l => /^סה"כ|^מצטבר (בחשבון זה|נ?ו?כחי)/.test(l) ? '=' : /^פחות|קודם|קיזוז|ניכוי|עי?כבון|ביטוח|קנס/.test(l) ? '-' : '+';
   // current-period amounts that can be computed from the invoice itself:
   //  - works: from the detailed BOQ, Σ סכום נוכחי (כמות נוכחית × מחיר יחידה); cumulative = Σ סכום מצטבר
   //  - indexation: the "התייקרות שוטפת" of this invoice's row in the indexation table
@@ -481,16 +481,29 @@ function parseInvoice(pages){
       }
       return o;
     });
+    const has = v => v !== undefined && !isNaN(v);
+    // a current-period row that names its cumulative ("... חשבון נוכחי (מצטבר: 431,003.37)") is that row's current amount
+    for(let i = (pi >= 0 ? pi + 1 : out.length); i < out.length; i++){
+      const m = out[i].label.match(/מצטבר:?\s*([\d][\d,. ]*\d)/); if(!m) continue;
+      const x = parseFloat(m[1].replace(/[ ,]/g, '')), t = out.find(o => o.cum !== undefined && Math.abs(Math.abs(n(o.cum)) - x) < 0.01);
+      if(!t) continue;
+      if(!has(t.cur)) t.cur = Math.sign(n(t.cum) || 1) * Math.abs(n(out[i].cur));
+      out[i].dup = true;
+    }
     // solve the rest from the subtotals: a subtotal = the subtotal before it + the rows between them.
     // When exactly one value in such a segment is unknown, it is solved; repeat until nothing changes.
     const idx = out.map((o, i) => i).filter(i => out[i].cum !== undefined);
-    const has = v => v !== undefined && !isNaN(v);
     for(let pass = 0, changed = true; changed && pass < 10; pass++){
       changed = false;
       let start = -1;
       for(const i of idx){
         if(out[i].op !== '=') continue;
         const comps = idx.filter(k => k > start && k < i), R = out[i], B = start >= 0 ? out[start] : { cur: 0 };
+        for(const k of comps){   // a percentage of the subtotal above it (checked against the cumulative amounts)
+          const o = out[k], m = !has(o.cur) && start >= 0 && has(B.cur) && o.label.match(/(\d+(?:\.\d+)?)\s*%/);
+          if(m && !/^מע"מ/.test(o.label) && Math.abs(Math.abs(n(o.cum)) - n(B.cum) * m[1] / 100) <= Math.max(1, Math.abs(n(o.cum)) * 0.001)){
+            o.cur = Math.sign(n(o.cum) || 1) * Math.abs(B.cur) * m[1] / 100; changed = true; }
+        }
         if(!comps.length && start >= 0 && Math.abs(n(B.cum) - n(R.cum)) < 0.01){   // two subtotals in a row with the same amount
           if(has(B.cur) && !has(R.cur)){ R.cur = B.cur; changed = true; }
           else if(has(R.cur) && !has(B.cur)){ B.cur = R.cur; changed = true; }
@@ -506,6 +519,7 @@ function parseInvoice(pages){
         start = i;
       }
     }
+    for(let i = out.length - 1; i >= 0; i--) if(out[i].dup) out.splice(i, 1);
     for(const o of out) if(o.cum !== undefined){
       if(has(o.cur)){ o.cur = Math.round(o.cur * 100) / 100; o.prev = Math.round((o.cum - o.cur) * 100) / 100; } else delete o.cur;
     }
@@ -513,6 +527,7 @@ function parseInvoice(pages){
   };
   const worksRow = r => /עבודות לפי חוזה|^סעיפי חוזה/.test(r.label);
   const mainKnown = (r, list) => {
+    if(boqCum && Math.abs(boqCum - r.amount) < 1) return boqCur;   // e.g. the works subtotal "מצטבר בחשבון זה"
     if(worksRow(r)){   // the BOQ is all of the works only when the other works rows (above the first subtotal) are 0
       const first = list.findIndex(x => op(x.label) === '='), works = list.slice(0, first < 0 ? list.length : first);
       return works.every(x => x === r || x.amount === 0) ? boqCur : undefined;
@@ -642,11 +657,12 @@ const isIdxRow = r => IDX_RE.test(r.label) && !/לחישוב|לתשלום|^מע"
 // block by label. A subtotal (=) closes the current block; an unrecognised deduction goes to קיזוזים, any other unrecognised row stays in the current block
 const SUM_GROUPS = [
   [/מע"מ|לתשלום|קודם/, 'סיכום'],
+  [/עי?כבון/, 'עכבון'],
   [/סעיפי חוזה|עבודות לפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
 const SUM_COLS = [['cur','סכום לחשבון חלקי (₪)','בחשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה']];   // RTL: first = rightmost
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
-const SUM_ORDER = ['עבודות', 'התייקרויות', 'קיזוזים וניכויים', 'סיכום'];
+const SUM_ORDER = ['עבודות', 'התייקרויות', 'קיזוזים וניכויים', 'עכבון', 'סיכום'];   // retention is its own block, last before the totals
 function buildSummary(s){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
   const template = !(s.rows && s.rows.length) && !Object.keys(info).length;
@@ -683,7 +699,10 @@ function buildSummary(s){
   const mainLabels = new Set(rows.map(r => r.label));
   const extra = (s.offset || []).filter(r => !mainLabels.has(r.label));
   const at = rows.findIndex(r => /קודם/.test(r.label));
-  const merged = at < 0 ? rows.concat(extra) : rows.slice(0, at + 1).concat(extra, rows.slice(at + 1));
+  // the payable after the offsets is the offset table's: it replaces the main table's when they differ
+  const offPay = (s.offset || []).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));
+  const main = offPay ? rows.map(r => r.label === offPay.label ? { ...r, ...offPay } : r) : rows;
+  const merged = at < 0 ? main.concat(extra) : main.slice(0, at + 1).concat(extra, main.slice(at + 1));
   // 2. block per row: anything whose text is about indexation (also an offset or an exception) is indexation; a subtotal (=) closes the current block;
   //    an unrecognised deduction is a קיזוז; any other unrecognised row stays in the current block
   let group = '';
@@ -717,7 +736,17 @@ function buildSummary(s){
   for(const g of SUM_ORDER.concat([...new Set(tagged.map(t => t.g))].filter(g => !SUM_ORDER.includes(g)))){
     let list = tagged.filter(t => t.g === g).map(t => t.r).filter(r => template || !/^סה"כ חשבון זה$/.test(r.label));   // shown by the "סה"כ" row
     if(!list.length) continue;
-    if(g === 'התייקרויות') list = list.filter(r => r.op !== '=').concat(list.filter(r => r.op === '='));
+    if(g === 'קיזוזים וניכויים' && !template){   // the block's closing subtotal reads "מצטבר לאחר קיזוזים"
+      const k = list.map(r => r.op).lastIndexOf('=');
+      if(k >= 0){
+        const pos = tagged.findIndex(t => t.r === list[k]), ret = tagged.filter((t, i) => t.g === 'עכבון' && i < pos).map(t => t.r);
+        const o = { ...list[k], label: 'מצטבר לאחר קיזוזים' };
+        for(const c of ['cur', 'prev', 'cum']) if(has(o[c]) && ret.length){
+          o[c] = ret.every(r => has(r[c])) ? Math.round((n(o[c]) - ret.reduce((t, r) => t + (r.op === '-' && n(r[c]) > 0 ? -n(r[c]) : n(r[c])), 0)) * 100) / 100 : undefined;
+        }
+        list = list.map((r, i) => i === k ? o : r);
+      }
+    }
     body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
     for(const r of list){
       const net = isNet(r), gross = /כולל מע"מ/.test(r.label);
