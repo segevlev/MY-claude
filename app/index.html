@@ -519,7 +519,15 @@ function parseInvoice(pages){
         start = i;
       }
     }
+    const unresolved = [];
+    { let start = -1;
+      for(const i of idx){ if(out[i].op !== '=') continue;
+        const comps = idx.filter(k => k > start && k < i), R = out[i], B = start >= 0 ? out[start] : { cur: 0 }, unk = comps.filter(k => !has(out[k].cur));
+        if(unk.length > 1 && has(R.cur) && has(B.cur))
+          unresolved.push({ labels: unk.map(k => out[k].label), amount: Math.round((R.cur - B.cur - comps.filter(k => has(out[k].cur)).reduce((t, k) => t + signed(out[k], out[k].cur), 0)) * 100) / 100 });
+        start = i; } }
     for(let i = out.length - 1; i >= 0; i--) if(out[i].dup) out.splice(i, 1);
+    out.unresolved = unresolved;
     for(const o of out) if(o.cum !== undefined){
       if(has(o.cur)){ o.cur = Math.round(o.cur * 100) / 100; o.prev = Math.round((o.cum - o.cur) * 100) / 100; } else delete o.cur;
     }
@@ -545,11 +553,13 @@ function parseInvoice(pages){
     if(m){ sinfo.index = m[1]; sinfo.index_base = `${m[2]} (${m[3]})`; } else sinfo.index = tidy(indexed); }
   if(base && !sinfo.index_base){ const bl = P[base.p].filter(i => Math.abs(i.y - base.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' ');
     const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = m[1]; }
+  const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
   fin.summary = {
     info: sinfo,
     rows: fin.summary_rows,
     vat_rate: vr && /([\d.]+)%/.test(vr.label) ? parseFloat(vr.label.match(/([\d.]+)%/)[1]) : undefined,
-    offset: splitRows(fin.offset_rows || [], r => curByLabel[r.label])
+    offset: offSplit,
+    unresolved: (fin.summary_rows.unresolved || []).concat(offSplit.unresolved || [])
   };
 
   if(!items.length) throw new Error('לא נמצאה טבלת סעיפים בקובץ. ודאו שזה חשבון חלקי שהופק מהמערכת (ולא סריקה).');
@@ -636,7 +646,8 @@ function buildItems(items, groups){
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
-   fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev | amt}], vat_rate, offset:[rows] }
+   const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
+  fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev | amt}], vat_rate, offset:[rows] }
    rows come in the order of the invoice; only what the invoice has is shown (fields, rows, cards and columns).
    With no summary data at all, the full catalogue below is shown as an empty template. */
 const SUM_INFO = [
@@ -702,7 +713,22 @@ function buildSummary(s){
   // the payable after the offsets is the offset table's: it replaces the main table's when they differ
   const offPay = (s.offset || []).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));
   const main = offPay ? rows.map(r => r.label === offPay.label ? { ...r, ...offPay } : r) : rows;
-  const merged = at < 0 ? main.concat(extra) : main.slice(0, at + 1).concat(extra, main.slice(at + 1));
+  const joined = at < 0 ? main.concat(extra) : main.slice(0, at + 1).concat(extra, main.slice(at + 1));
+  const sv = (r, c) => r.op === '-' && n(r[c]) > 0 ? -n(r[c]) : n(r[c]);   // signed value: a deduction already written as negative is added as is
+  const r2 = v => Math.round(v * 100) / 100;
+  // RULE (user): no blank cells. A row without an amount for this invoice gets 0 and its previous cumulative = its current cumulative;
+  // a subtotal without one is the running sum of the rows above it (in the invoice's order).
+  let accCur = 0;
+  const merged = template ? joined : joined.map(r => {
+    if(/^מע"מ|כולל מע"מ/.test(r.label)) return r;
+    let o = r;
+    if(!has(r.cur)){
+      if(has(r.cum)) o = r.op === '=' ? { ...r, cur: r2(accCur), prev: r2(n(r.cum) - accCur) } : { ...r, cur: 0, prev: r.cum };
+      else if(has(r.prev)) o = { ...r, cur: 0, cum: r.prev };
+    }
+    if(has(o.cum)) accCur = o.op === '=' ? n(o.cur) : accCur + sv(o, 'cur');
+    return o;
+  });
   // 2. block per row: anything whose text is about indexation (also an offset or an exception) is indexation; a subtotal (=) closes the current block;
   //    an unrecognised deduction is a קיזוז; any other unrecognised row stays in the current block
   let group = '';
@@ -713,8 +739,7 @@ function buildSummary(s){
     group = g;
     return { r, g };
   });
-  // 3. blocks in a fixed order, so all deductions sit above the payable total; inside the indexation block,
-  //    rows that came from elsewhere go before its subtotals
+  const posOf = r => tagged.findIndex(t => t.r === r);
   // the pre-VAT total row is "סה"כ" and shows the sum of every column: a running sum over the rows above it,
   // in the invoice's own order (a subtotal replaces the sum, + / − add and subtract). The invoice's own figures win.
   const isNet = r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label);
@@ -723,29 +748,46 @@ function buildSummary(s){
     let acc = 0, ok = true;
     for(const t of tagged){
       if(t.g === 'סיכום') continue;
-      const v = t.r[k];
-      if(v === undefined || v === null || v === ''){ if(t.r.op !== '=') ok = false; continue; }
-      acc = t.r.op === '=' ? n(v) : acc + (t.r.op === '-' && n(v) > 0 ? -n(v) : n(v));   // a deduction already written as negative is added as is
+      if(!has(t.r[k])){ if(t.r.op !== '=') ok = false; continue; }
+      acc = t.r.op === '=' ? n(t.r[k]) : acc + sv(t.r, k);
       if(t.r.op === '=') ok = true;
     }
-    if(ok && tagged.some(t => t.g !== 'סיכום')) tot[k] = Math.round(acc * 100) / 100;
+    if(ok && tagged.some(t => t.g !== 'סיכום')) tot[k] = r2(acc);
   }
   const totalRow = r => { const o = { ...r, label: 'סה"כ' }; for(const k in tot) if(!has(o[k])) o[k] = tot[k]; return o; };
+  const netRow = merged.find(isNet);
 
+  // 3. blocks in a fixed order (SUM_ORDER), so all deductions sit above the total
   let body = '';
   for(const g of SUM_ORDER.concat([...new Set(tagged.map(t => t.g))].filter(g => !SUM_ORDER.includes(g)))){
-    let list = tagged.filter(t => t.g === g).map(t => t.r).filter(r => template || !/^סה"כ חשבון זה$/.test(r.label));   // shown by the "סה"כ" row
+    let list = tagged.filter(t => t.g === g).map(t => t.r)
+      .filter(r => template || !(/^סה"כ חשבון זה$/.test(r.label) || (g === 'סיכום' && /קודם/.test(r.label))));   // both are shown by the "סה"כ" row
     if(!list.length) continue;
-    if(g === 'קיזוזים וניכויים' && !template){   // the block's closing subtotal reads "מצטבר לאחר קיזוזים"
+    if(g === 'התייקרויות'){
+      // RULE (user): every indexation row sits above the block's subtotal "סה"כ כולל התייקרות".
+      // A row the invoice subtracts only after that subtotal is added into the subtotal shown, so the block still adds up.
+      const rest = list.filter(r => r.op !== '=');
+      list = rest.concat(list.filter(r => r.op === '=').map(r => {
+        const late = rest.filter(x => posOf(x) > posOf(r));
+        if(template || !late.length) return r;
+        const o = { ...r };
+        for(const c of ['cur', 'prev', 'cum']) if(has(o[c])) o[c] = late.every(x => has(x[c])) ? r2(n(o[c]) + late.reduce((t, x) => t + sv(x, c), 0)) : undefined;
+        return o;
+      }));
+    }
+    if(g === 'קיזוזים וניכויים' && !template){   // the block's closing subtotal reads "מצטבר לאחר קיזוזים" and excludes retention
       const k = list.map(r => r.op).lastIndexOf('=');
       if(k >= 0){
-        const pos = tagged.findIndex(t => t.r === list[k]), ret = tagged.filter((t, i) => t.g === 'עכבון' && i < pos).map(t => t.r);
+        const ret = tagged.filter((t, i) => t.g === 'עכבון' && i < posOf(list[k])).map(t => t.r);
         const o = { ...list[k], label: 'מצטבר לאחר קיזוזים' };
-        for(const c of ['cur', 'prev', 'cum']) if(has(o[c]) && ret.length){
-          o[c] = ret.every(r => has(r[c])) ? Math.round((n(o[c]) - ret.reduce((t, r) => t + (r.op === '-' && n(r[c]) > 0 ? -n(r[c]) : n(r[c])), 0)) * 100) / 100 : undefined;
-        }
+        for(const c of ['cur', 'prev', 'cum']) if(has(o[c]) && ret.length)
+          o[c] = ret.every(r => has(r[c])) ? r2(n(o[c]) - ret.reduce((t, r) => t + sv(r, c), 0)) : undefined;
         list = list.map((r, i) => i === k ? o : r);
       }
+    }
+    if(g === 'עכבון' && !template){   // the retention block closes with "סה"כ כולל עכבון" (= the total after retention)
+      const t = totalRow(netRow || {});
+      list = list.concat({ label: 'סה"כ כולל עכבון', op: '=', cur: t.cur, prev: t.prev, cum: t.cum });
     }
     body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
     for(const r of list){
@@ -829,6 +871,8 @@ function runChecks({ header, fin, items }){
     if(n(fin.total_pay) && !near(exp, n(fin.total_pay), 1))
       w.push(`מצטבר פחות קיזוזים וחשבון קודם (${money(exp)}) אינו שווה ל"סה"כ לתשלום" (${money(fin.total_pay)}).`);
   }
+  for(const u of fin.summary?.unresolved || [])
+    w.push(`לא ניתן לפצל את הסכום לחשבון חלקי בין ${u.labels.map(l => '"' + esc(l) + '"').join(' ו-')}: יחד הם ${money(u.amount)} בחשבון זה, אך הוצגו כ-0. שורת הסיכום שאחריהם לא תסתכם בתצוגה.`);
   const sr = fin.summary?.rows || [], spi = sr.findIndex(r => /קודם/.test(r.label));
   if(spi > 0){   // the split computed from the BOQ must agree with the invoice's own totals
     const t = sr[spi - 1], pay = sr.slice(spi + 1).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));

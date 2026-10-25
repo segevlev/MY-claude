@@ -31,20 +31,35 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
 - **Computed:** `סכום נוכחי` = כמות נוכחית × מחיר יחידה (`curAmt`). It is also summed in subtotals.
 - **Empty for now:** `כמות חוזה מקורית` has a header only. The user will define its logic later.
 
+## User rules for the summary table – do not break
+These were set by the user, and some were broken once and had to be fixed again. `tests/summary.test.js` checks them. Run it before every commit that touches the summary table: `NODE_PATH=$(npm root -g) node tests/summary.test.js`.
+1. **Column order**, right to left: תיאור, סכום לחשבון חלקי, + / − / =, מצטבר קודם, מצטבר נוכחי.
+2. **Indexation:**
+   - **Grouping:** every row whose text is about indexation goes to the התייקרויות block, matched in any spelling (`IDX_RE`).
+   - **Position:** it sits ABOVE "סה"כ כולל התייקרות", also when the invoice subtracts it only after that subtotal.
+   - **Subtotal:** in that case the subtotal shown is recalculated to include it.
+3. **No blank cells:**
+   - a regular row without an amount for this invoice gets סכום לחשבון חלקי = 0 and מצטבר קודם = מצטבר נוכחי;
+   - a subtotal without one gets the running sum of the rows above it;
+   - when the solver cannot split two rows, the checks panel says so.
+4. **Retention** (עכבון) is its own block, last before סיכום, closing with "סה"כ כולל עכבון".
+5. **Deductions:** the deductions block closes with "מצטבר לאחר קיזוזים", which excludes retention.
+6. **Hidden rows:** "סה"כ חשבון זה" and the "מצטבר … קודם" rows of סיכום are not shown. The "סה"כ" row covers them.
+7. **The pre-VAT total** reads "סה"כ", and every column of it is filled.
+8. **Duplicate row:** "… חשבון נוכחי (מצטבר: X)" is the current amount of the row whose cumulative is X. It is not shown as its own row.
+
 ## Summary table (טבלה מסכמת)
 `buildSummary(fin.summary)` renders on page 1, below the KPIs. Page 1 has no other financial tables, and the KPIs have no incl.-VAT tile. The data shape is `{ info:{orig, boq, incl_exc, balance, exc_mgr, overrun_mgr, adv_given, adv_left, due_date}, rows:[{label, op:'+'|'-'|'=', cur, cum, prev}], vat_rate }`.
 - **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.
 - **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
 - **Blocks:** blocks (עבודות / התייקרויות / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
-  - **Indexation rows:** any row whose text is about indexation (`IDX_RE`: התייקרות / התיקרות / הצמדה / מדד, but not "לחישוב", the payable or VAT) goes to התייקרויות, in the invoice's order. This includes offsets and exceptions.
-  - **Indexation adjustment:** an adjustment the invoice subtracts after "סה"כ כולל התייקרות" stays after it.
+  - **Indexation rows:** `IDX_RE` matches התייקרות / התיקרות / הצמדה / מדד, but not "לחישוב", the payable or VAT. See user rule 2.
   - **Retention:** retention (עכבון) is its own block, last before סיכום.
   - **Deductions subtotal:** the block's last `=` row is labelled "מצטבר לאחר קיזוזים" and excludes retention the invoice had already subtracted, so it plus retention = "סה"כ".
   - **Payable:** the payable from the חו"ג table, which is after the offsets, replaces the main table's.
   - **Block order:** blocks are rendered in the fixed order `SUM_ORDER`, so all deductions sit above the payable total.
   - **Offset rows:** the חו"ג offset rows are merged into the main table right after the "קודם" row, and rows that repeat a main label are dropped.
   - **Signs:** the + / − / = column sits between סכום לחשבון חלקי and the cumulative columns.
-- **Hidden row:** "סה"כ חשבון זה" is not shown, because the "סה"כ" row covers it.
 - **Emphasis:** the pre-VAT total is the emphasised row. It is labelled "סה"כ" and every column is summed, as a running sum over the rows above it in the invoice's own order (a `=` row replaces the sum). The invoice's own figures win. The incl.-VAT total is a quiet row.
 - **Parsing:** `parseInvoice` fills `fin.summary` from the payment page (op inferred from the label). The single amount column is split by `splitRows` into cum / prev / cur.
   - **Row kinds:** rows up to the first "קודם" row are cumulative. That row is the previous total. Rows after it are this invoice's amounts.
