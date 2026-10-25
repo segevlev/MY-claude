@@ -61,32 +61,32 @@ button,input{font-family:inherit}
 #doc{width:695px;font-size:9.6pt;color:var(--ink);font-family:Arial,"Liberation Sans",sans-serif}
 #doc [contenteditable]:focus{outline:1px dashed var(--amber)}
 #doc table{width:100%;border-collapse:collapse}
-.d-top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--navy);padding-bottom:10px;gap:14px}
+.d-top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--navy);padding-bottom:8px;gap:14px}
 .brand{display:flex;align-items:center;gap:12px}
-.mark{width:54px;height:54px;background:var(--navy);border-radius:6px;position:relative;overflow:hidden;flex-shrink:0}
+.mark{width:46px;height:46px;background:var(--navy);border-radius:6px;position:relative;overflow:hidden;flex-shrink:0}
 .mark i{position:absolute;left:0;right:0;height:7px;background:var(--amber)}
 .mark i:nth-child(1){bottom:10px}.mark i:nth-child(2){bottom:22px;right:12px}.mark i:nth-child(3){bottom:34px;right:24px}
 .brand img{max-height:60px;max-width:180px}
-.bname{font-size:21pt;font-weight:bold;color:var(--navy);line-height:1.05}
+.bname{font-size:19pt;font-weight:bold;color:var(--navy);line-height:1.05}
 .bsub{font-size:9.5pt;color:var(--mute);margin-top:5px}
 .cdet{font-size:8.2pt;color:#3c4757;display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:2px}
 .cdet b{color:var(--mute);font-weight:normal}
 .cdet>span{justify-self:start;text-align:right}
-.d-proj{margin:16px 0 0;font-size:22pt;line-height:1.2;color:var(--navy);font-weight:bold}
-.d-title{margin:10px 0 12px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.d-proj{margin:10px 0 0;font-size:20pt;line-height:1.2;color:var(--navy);font-weight:bold}
+.d-title{margin:6px 0 8px;background:var(--navy);color:#fff;border-radius:5px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
 .d-title h2{font-size:13.5pt;margin:0;line-height:1.35}
 .d-title h2 .nw{white-space:nowrap}
 .tag{background:var(--amber);color:var(--navy);font-weight:bold;padding:4px 10px;border-radius:3px;font-size:10pt;white-space:nowrap}
-#doc h4{font-size:10.5pt;color:var(--navy);margin:14px 0 6px;padding-right:7px;border-right:4px solid var(--amber)}
+#doc h4{font-size:10.5pt;color:var(--navy);margin:10px 0 5px;padding-right:7px;border-right:4px solid var(--amber)}
 .two{display:flex;gap:12px}.two>div{flex:1;min-width:0}
-.kv td{border:1px solid var(--line);padding:4px 8px}
+.kv td{border:1px solid var(--line);padding:3px 8px}
 .kv td:first-child{background:var(--soft);color:#55606f;width:40%;white-space:nowrap}
 .kv td:last-child{font-weight:bold}
 .missing{color:#b0b8c4;font-weight:normal;font-style:italic}
 .exporting .missing{color:transparent}
 #doc.exporting *{letter-spacing:.01px}   /* makes html2canvas place each character where the browser laid it out – otherwise RTL text loses its spaces */
-.kpis{display:flex;gap:8px;margin-top:14px}
-.kpi{flex:1;border:1px solid var(--line);border-radius:5px;padding:8px 10px}
+.kpis{display:flex;gap:8px;margin-top:10px}
+.kpi{flex:1;border:1px solid var(--line);border-radius:5px;padding:6px 10px}
 .kpi .l{font-size:8pt;color:var(--mute)}
 .kpi .v{font-size:13pt;font-weight:bold;color:var(--navy);margin-top:3px;text-align:right}
 .kpi.main{background:var(--navy);border-color:var(--navy)}
@@ -99,30 +99,30 @@ button,input{font-family:inherit}
 .grid tr.sub td{background:var(--soft);font-weight:bold}
 .grid tr.grand td{background:#fbeccf;font-weight:bold;font-size:10.5pt;border-top:2px solid var(--navy)}
 .grid tr.final td{background:var(--navy);color:#fff;font-weight:bold;font-size:11pt}
-.note{margin-top:12px;padding:8px 12px;background:#fdf3e3;border:1px solid var(--amber);border-radius:4px;font-weight:bold;color:#7a4e10;text-align:center}
-.sign{display:flex;gap:12px;margin-top:16px}
-.sign div{flex:1;border:1px solid var(--line);border-radius:4px;padding:8px 10px 34px;font-size:8.5pt;color:#55606f;position:relative}
+.note{margin-top:8px;padding:6px 12px;background:#fdf3e3;border:1px solid var(--amber);border-radius:4px;font-weight:bold;color:#7a4e10;text-align:center}
+.sign{display:flex;gap:12px;margin-top:10px}
+.sign div{flex:1;border:1px solid var(--line);border-radius:4px;padding:6px 10px 28px;font-size:8.5pt;color:#55606f;position:relative}
 .sign div::after{content:"שם / חתימה / תאריך";position:absolute;bottom:6px;right:10px;left:10px;border-top:1px dashed #9aa5b4;padding-top:3px;font-size:7.5pt;color:#9aa5b4}
 .html2pdf__page-break{height:0;margin:40px -49px;border-top:2px dashed #b8c1cd}
 .exporting .html2pdf__page-break{margin:0;border:0}
 .mini{display:flex;justify-content:space-between;border-bottom:2px solid var(--navy);padding-bottom:6px;margin-bottom:8px;font-size:8.5pt;color:#55606f}
 .mini b{color:var(--navy);font-size:11pt}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.si{display:flex;gap:10px;margin-bottom:14px}
+.si{display:flex;gap:10px;margin-bottom:8px}
 .si-card{flex:1;min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
 .si-t{background:var(--soft);color:var(--navy);font-weight:bold;padding:5px 8px;border-bottom:2px solid var(--amber);font-size:9pt}
-.si .kv td{border-width:0 0 1px;font-size:8.6pt;padding:5px 8px}
+.si .kv td{border-width:0 0 1px;font-size:8.6pt;padding:3px 8px}
 .si .kv tr:last-child td{border-bottom:0}
 .si .kv td:first-child{background:#fff;width:auto;white-space:normal}
 .si .kv td:last-child{white-space:nowrap}
 .sumt{font-size:9.6pt}
 .sumt th{font-size:9pt;vertical-align:bottom}
 .sumt .th2{display:block;font-weight:normal;font-size:7.6pt;color:#c9d4e3;margin-top:2px}
-.sumt td{padding:6px 9px}
+.sumt td{padding:4px 9px}
 .sumt tbody tr:not(.sg):not(.sub):not(.final):not(.quiet):nth-child(even) td{background:#fafbfc}
-.sumt tr.sg td{background:#fff;color:var(--navy);font-weight:bold;font-size:8.6pt;border-width:0 0 2px;border-bottom-color:var(--navy);padding:12px 4px 3px}
+.sumt tr.sg td{background:#fff;color:var(--navy);font-weight:bold;font-size:8.6pt;border-width:0 0 2px;border-bottom-color:var(--navy);padding:7px 4px 2px}
 .sumt tr.sub td{background:#e3e9f1;border-top:1.5px solid var(--navy)}
-.sumt tr.final td{font-size:12.5pt;padding:10px 9px}
+.sumt tr.final td{font-size:12pt;padding:7px 9px}
 .sumt td.op{text-align:center;font-weight:bold;font-size:11pt;padding:4px 0}
 .sumt td.opp{color:#2e7d4f}.sumt td.opm{color:var(--red)}.sumt td.ope{color:var(--navy)}
 .sumt tr.final td.op{color:var(--amber)}
@@ -146,9 +146,17 @@ button,input{font-family:inherit}
 
 @media (max-width:900px){.layout{flex-direction:column}.side{width:100%;position:static}}
 @media print{
-  @page{size:A4;margin:14mm 13mm}
-  body{background:#fff}.bar,.side{display:none}.layout{padding:0}.paper{box-shadow:none;padding:0;width:auto}
-  .html2pdf__page-break{margin:0;border:0;page-break-before:always}
+  @page{size:A4;margin:12mm 12mm 14mm;
+    @bottom-left{content:counter(page) " / " counter(pages);font:8pt Arial,sans-serif;color:#8a94a3}}
+  body{background:#fff}.bar,.side{display:none}.layout{padding:0;display:block}.main{overflow:visible}
+  .paper{box-shadow:none;padding:0;width:auto;margin:0}
+  #doc{width:100%}
+  .html2pdf__page-break{height:0;margin:0;border:0;break-before:page}
+  #doc [contenteditable]:focus,#doc:focus{outline:none}
+  .missing{color:transparent}
+  tr,.kpis,.si-card,.sign,.note,.d-title,.two,.d-top{break-inside:avoid}
+  #doc h4,.mini,tr.sg,tr.s1,tr.s2,tr.s3{break-after:avoid}
+  thead{display:table-header-group}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
@@ -195,8 +203,9 @@ button,input{font-family:inherit}
 
     <div class="box" id="exportBox" hidden>
       <h3>3. הורדה</h3>
-      <button class="btn primary" id="dl">הורד PDF</button>
-      <button class="btn" id="pr">הדפס / שמור כ-PDF מהדפדפן</button>
+      <button class="btn primary" id="pr">PDF איכותי / הדפסה</button>
+      <div class="small">בחלון שנפתח בחרו "שמירה כ-PDF" (יעד). הטקסט חד וניתן לחיפוש.</div>
+      <button class="btn" id="dl">הורדה ישירה (PDF כתמונה)</button>
       <div id="exMsg"></div>
       <div class="small">אפשר ללחוץ על כל טקסט בתצוגה ולתקן אותו לפני ההורדה.</div>
     </div>
@@ -870,6 +879,8 @@ function render({ header, fin, items }){
   </table>`;
   $('doc').contentEditable = 'true';
   $('empty').hidden = true; $('paper').hidden = false;
+  let ps = $('pageStyle'); if(!ps){ ps = document.createElement('style'); ps.id = 'pageStyle'; document.head.appendChild(ps); }
+  ps.textContent = `@media print{@page{@bottom-right{content:"${String(d.account_code || '').replace(/[^\w-]/g, '')}";font:8pt Arial,sans-serif;color:#8a94a3}}}`;
 }
 
 /* ---------- checks ---------- */
@@ -919,6 +930,9 @@ function exMsg(html, isErr){ $('exMsg').innerHTML = html ? `<div class="${isErr?
 
 $('pr').onclick = () => {
   exMsg('');
+  const title = document.title, code = (lastData?.header?.doc?.account_code || 'invoice').replace(/[^\w-]/g,'');
+  document.title = `invoice_${code}`;   // the browser uses it as the PDF file name
+  window.addEventListener('afterprint', () => { document.title = title; }, { once: true });
   try{ window.print(); }catch(e){}
   setTimeout(()=>exMsg('אם חלון ההדפסה לא נפתח, הדפדפן חוסם הדפסה בתוך החלון הזה. השתמשו בכפתור "הורד PDF".', false), 1200);
 };
@@ -927,7 +941,7 @@ $('pr').onclick = () => {
    For the export the items table is split into page-sized tables, each with its own header; returns a restore function. */
 function paginateItems(el){
   const tbl = el.querySelector('table.items'); if(!tbl || !tbl.tHead || !tbl.tBodies[0]) return () => {};
-  const pageH = el.offsetWidth / 184 * 267 - 8;   // A4 content box (210×297 mm minus the 13/13/14/16 mm margins) in CSS px, minus slack
+  const pageH = el.offsetWidth / 186 * 271 - 8;   // A4 content box (210×297 mm minus the 12/12/12/14 mm margins) in CSS px, minus slack
   const brk = [...el.querySelectorAll('.html2pdf__page-break')].pop();   // the items section starts on a new page
   const top0 = brk ? brk.getBoundingClientRect().bottom : el.getBoundingClientRect().top;
   const headH = tbl.tHead.getBoundingClientRect().height, hOf = r => r.getBoundingClientRect().height;
@@ -964,7 +978,7 @@ $('dl').onclick = async () => {
   const fname = `invoice_${code}.pdf`;
   try{
     const pdf = await html2pdf().set({
-      margin:[14,13,16,13], filename:fname,
+      margin:[12,12,14,12], filename:fname,   // same margins as the print CSS
       image:{type:'jpeg',quality:0.96},
       html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,scrollX:0,scrollY:0},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
@@ -972,7 +986,7 @@ $('dl').onclick = async () => {
     }).from(el).toPdf().get('pdf');
     const tot = pdf.internal.getNumberOfPages();
     for(let i=1;i<=tot;i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140);
-      pdf.text(`${i} / ${tot}`, 13, 289); pdf.text(code, 197, 289, {align:'right'}); }
+      pdf.text(`${i} / ${tot}`, 12, 290); pdf.text(code, 198, 290, {align:'right'}); }
     const blob = pdf.output('blob');
     if(blobUrl) URL.revokeObjectURL(blobUrl);
     blobUrl = URL.createObjectURL(blob);
@@ -986,7 +1000,7 @@ $('dl').onclick = async () => {
       <a class="btn" href="${blobUrl}" target="_blank" rel="noopener">פתיחה בלשונית חדשה</a>`, false);
   }catch(e){
     exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
-  }finally{ unpaginate(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורד PDF'; }
+  }finally{ unpaginate(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורדה ישירה (PDF כתמונה)'; }
 };
 
 /* test hook */

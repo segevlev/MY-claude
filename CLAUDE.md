@@ -21,7 +21,11 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
    - payment page: anchored on "עבודות לפי חוזה". Amounts aligned to the main column go to `payment_rows`, the others are side values (e.g. קיזוז חו"ג).
 4. **Render**: `render(data)` + `buildItems` (hierarchical code prefixes → מבנה/פרק/תת פרק headers and subtotals). The document is `contentEditable`.
 5. **Checks**: `runChecks` runs these validations: qty×price per line, sum of lines vs "מחיר כולל", payment math, VAT, execution %, missing fields, dates, and non-integer quantities in unit items.
-6. **Export**: html2pdf (A4, page numbers + account code in the footer) or the browser print dialog.
+6. **Export**: two paths with the same A4 layout and margins (12/12/12/14 mm).
+   - **Browser print (primary, "PDF איכותי / הדפסה"):** `window.print()` produces a vector PDF with sharp, searchable text.
+     - **Print CSS:** `@page` adds "page / pages" bottom-left and the account number bottom-right (`#pageStyle`, set per invoice). Rows, cards, signatures and the title bar never split, `thead` repeats, and `document.title` becomes the file name.
+     - **Page 1:** the spacing is tuned so that page 1 (header, details, KPIs, summary table, signatures) fits one sheet.
+   - **Direct download (html2pdf, an image PDF).**
    - **Scroll:** the window is scrolled to the top during export, with `scrollX/scrollY: 0`. html2canvas renders blank pages when the window is scrolled.
    - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
    - **Repeated header:** `paginateItems` splits the items table into page-sized tables, each with its own header and with page breaks between them. A group heading moves with the row after it. The table is restored after the export. The print dialog repeats `thead` natively.
