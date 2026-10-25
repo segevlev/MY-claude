@@ -45,6 +45,9 @@ This table comes right before "פירוט סעיפי החשבון", on the same 
 Columns are defined in `ITEM_COLS` (display order, header, width, cell value). PDF → app names: סעיף→מספר פעילות, תאור→תאור פעילות, יחידה→יח' מידה, כמות חוזה→כמות חוזה מעודכנת, מצטבר קודם→כמות מצטברת קודמת (role `prev`, when the PDF has it), כמות נוכחית, מחיר יחידה, תשלום %→ביצוע %, כמות מצטברת→כמות מצטברת נוכחית, סה"כ מצטבר→סכום מצטבר.
 - **Computed:** `סכום נוכחי` = כמות נוכחית × מחיר יחידה (`curAmt`). It is also summed in subtotals.
 - **Empty for now:** `כמות חוזה מקורית` has a header only. The user will define its logic later.
+- **Layout:** the table has a fixed layout (`table-layout:fixed`, `width:100%`), so it is always exactly the page width.
+  - **Column widths:** the amount columns are sized for amounts in the hundreds of millions, and the description column takes the rest.
+  - **Fitting:** `fitNumbers` shrinks any number, activity code or header that is wider than its cell, down to 70%. Only then does it wrap. Header words are never broken in the middle.
 
 ## User rules for the summary table – do not break
 These were set by the user, and some were broken once and had to be fixed again. `tests/summary.test.js` checks them. Run it before every commit that touches the summary table: `NODE_PATH=$(npm root -g) node tests/summary.test.js`.

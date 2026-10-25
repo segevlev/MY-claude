@@ -131,7 +131,9 @@ button,input{font-family:inherit}
 .sumt tr.quiet td{font-size:9pt;color:#55606f;background:#fff}
 .struct td{font-weight:bold;background:var(--soft);padding:6px 9px}
 .struct tr.grand td{background:#fbeccf}
-.items{font-size:7.8pt}
+.items{font-size:7.8pt;table-layout:fixed;width:100%}
+.items td{overflow-wrap:anywhere}
+.items th{overflow-wrap:normal;word-break:keep-all}
 .items th{padding:4px 2px;font-size:7.2pt;line-height:1.2;vertical-align:bottom}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:7.4pt;padding:4px 3px}
 .items td.c{text-align:center}
@@ -618,18 +620,18 @@ $('go').onclick = async () => {
 const LEVEL = ['', 'מבנה', 'פרק', 'תת פרק'];
 /* items table columns, in display order. src = PDF column it comes from; '' = not in the PDF yet (computed later, shown empty) */
 const ITEM_COLS = [
-  { h:'מספר פעילות',          w:8.5, cls:'code', v: it => esc(it.code) },
+  { h:'מספר פעילות',          w:9, cls:'code', v: it => esc(it.code) },
   { h:'תאור פעילות',          w:0,   cls:'',     v: it => T(it.title) + (it.detail ? `<span class="sm">${T(it.detail)}</span>` : '') },
   { h:"יח' מידה",            w:4,   cls:'c',    v: it => esc(it.unit) },
-  { h:'כמות חוזה מקורית',    w:6.2, cls:'num',  v: () => '' },
-  { h:'כמות חוזה מעודכנת',   w:6.2, cls:'num',  v: it => qty(it.cq, 2) },
-  { h:'כמות מצטברת קודמת',   w:6.2, cls:'num',  v: it => it.prev === undefined ? '' : qty(it.prev) },
-  { h:'כמות נוכחית',         w:6.2, cls:'num',  v: it => qty(it.cur) },
-  { h:'מחיר יחידה (₪)',      w:6.5, cls:'num',  v: it => money(it.price) },
-  { h:'ביצוע %',             w:5,   cls:'num',  v: it => `${n(it.pct)}%` },
-  { h:'כמות מצטברת נוכחית',  w:6.2, cls:'num',  v: it => qty(it.cum) },
-  { h:'סכום נוכחי (₪)',      w:7.5, cls:'num',  v: it => money(curAmt(it)), sum:'cur' },
-  { h:'סכום מצטבר (₪)',      w:8,   cls:'num',  v: it => money(it.total), sum:'total' }
+  { h:'כמות חוזה מקורית',    w:5.6, cls:'num',  v: () => '' },
+  { h:'כמות חוזה מעודכנת',   w:5.6, cls:'num',  v: it => qty(it.cq, 2) },
+  { h:'כמות מצטברת קודמת',   w:5.6, cls:'num',  v: it => it.prev === undefined ? '' : qty(it.prev) },
+  { h:'כמות נוכחית',         w:5.6, cls:'num',  v: it => qty(it.cur) },
+  { h:'מחיר יחידה (₪)',      w:7.6, cls:'num',  v: it => money(it.price) },
+  { h:'ביצוע %',             w:4.4,   cls:'num',  v: it => `${n(it.pct)}%` },
+  { h:'כמות מצטברת נוכחית',  w:5.6, cls:'num',  v: it => qty(it.cum) },
+  { h:'סכום נוכחי (₪)',      w:9, cls:'num',  v: it => money(curAmt(it)), sum:'cur' },
+  { h:'סכום מצטבר (₪)',      w:9.4,   cls:'num',  v: it => money(it.total), sum:'total' }
 ];
 const curAmt = it => n(it.cur) * n(it.price);   // סכום נוכחי = כמות נוכחית × מחיר יחידה
 function buildItems(items, groups){
@@ -880,7 +882,8 @@ function render({ header, fin, items }){
     <tbody>${rows}</tbody>
   </table>`;
   $('doc').contentEditable = 'true';
-  $('empty').hidden = true; $('paper').hidden = false; fitPaper();
+  $('empty').hidden = true; $('paper').hidden = false;
+  $('paper').style.zoom = ''; fitNumbers(); fitPaper();
   let ps = $('pageStyle'); if(!ps){ ps = document.createElement('style'); ps.id = 'pageStyle'; document.head.appendChild(ps); }
   ps.textContent = `@media print{@page{@bottom-right{content:"${String(d.account_code || '').replace(/[^\w-]/g, '')}";font:8pt Arial,sans-serif;color:#8a94a3}}}`;
 }
@@ -1008,6 +1011,16 @@ $('dl').onclick = async () => {
 
 /* the on-screen page is a fixed A4 width; when the space next to the side panel is narrower, shrink it to fit
    (print and the PDF export always use the real size) */
+/* a number (or activity code) wider than its cell is drawn smaller, down to 70%; only if it still doesn't fit it wraps */
+function fitNumbers(){
+  for(const td of document.querySelectorAll('#doc td.num, #doc td.code, #doc table.items th')){
+    td.style.fontSize = ''; td.style.whiteSpace = '';
+    if(td.scrollWidth <= td.clientWidth + 0.5) continue;
+    let fs = parseFloat(getComputedStyle(td).fontSize); const min = fs * 0.7;
+    while(td.scrollWidth > td.clientWidth + 0.5 && fs > min){ fs -= 0.25; td.style.fontSize = fs + 'px'; }
+    if(td.scrollWidth > td.clientWidth + 0.5) td.style.whiteSpace = 'normal';
+  }
+}
 function fitPaper(){
   const paper = $('paper'), main = paper && paper.parentElement; if(!paper || paper.hidden) return;
   paper.style.zoom = 1;

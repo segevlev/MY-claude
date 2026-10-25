@@ -67,6 +67,15 @@ await p.emulateMedia({ media: 'print' });
 const over = await p.evaluate(() => [...document.querySelectorAll('#doc table, #doc .si, #doc .kpis')].filter(t => t.scrollWidth > t.parentElement.clientWidth + 1).length);
 ok(over === 0, 'in print no table or card row is wider than the page');
 ok(await p.evaluate(() => !!document.querySelector('#doc .sum-block table.sumt')), 'the summary table sits in a block that is never split across pages');
+// items table with large amounts at the printable A4 width: never wider than the page, no number spilling out of its cell
+await p.emulateMedia({ media: 'screen' });
+await p.setViewportSize({ width: 703, height: 900 });
+const big = (code, cur, price) => ({ code, title: 'סעיף עם סכום גדול', unit: 'מ"ק', cq: 12345.678, prev: 10000.5, cur, cum: 10000.5 + cur, pct: 100, price, total: (10000.5 + cur) * price });
+await p.evaluate(d => window.__renderDemo(d), { header, items: [big('02.99.01.0440', 2345.178, 11740.02), big('02.99.01.0450', 1, 1517730.35)], fin: { groups: {}, summary: fixtures.withPrevious } });
+await p.emulateMedia({ media: 'print' });
+const it = await p.evaluate(() => { const t = document.querySelector('#doc table.items'), d = document.getElementById('doc');
+  return { wide: t.scrollWidth - d.clientWidth, spill: [...t.querySelectorAll('td.num, td.code')].filter(c => c.scrollWidth > c.clientWidth + 1).length }; });
+ok(it.wide <= 1 && it.spill === 0, `items table with large amounts fits the page (overflow ${it.wide}px, cells ${it.spill})`);
 await p.emulateMedia({ media: 'screen' });
 await b.close();
 console.log(failed ? `${failed} failed` : 'all passed');
