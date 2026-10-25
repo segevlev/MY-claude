@@ -35,6 +35,10 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
 - **Rule:** show only what the invoice contains. Rows render in invoice order, and missing info fields, rows or cards are not shown. Zero values are shown.
 - **No data:** with no summary data at all, the full `SUM_TEMPLATE` catalogue renders as an empty template.
 - **Blocks:** blocks (עבודות / התייקרויות / קיזוזים וניכויים / סיכום) are assigned by label (`SUM_GROUPS`). A `=` row closes the current block. An unknown `-` row goes to קיזוזים.
+  - **Indexation rows:** any indexation offset or exception (התייקרות + קיזוז/ניכוי/חריג) goes to התייקרויות, before that block's subtotals.
+  - **Block order:** blocks are rendered in the fixed order `SUM_ORDER`, so all deductions sit above the payable total.
+  - **Offset rows:** the חו"ג offset rows are merged into the main table right after the "קודם" row, and rows that repeat a main label are dropped.
+  - **Signs:** the + / − / = column sits between סכום לחשבון חלקי and the cumulative columns.
 - **Emphasis:** the pre-VAT total is the emphasised row. The incl.-VAT total is a quiet row.
 - **Parsing:** `parseInvoice` fills `fin.summary` from the payment page (op inferred from the label). The single amount column is split by `splitRows` into cum / prev / cur.
   - **Row kinds:** rows up to the first "קודם" row are cumulative. That row is the previous total. Rows after it are this invoice's amounts.

@@ -615,18 +615,19 @@ const SUM_TEMPLATE = [
 ].map(([label, op]) => ({ label, op }));
 // block by label. A subtotal (=) closes the current block; an unrecognised deduction goes to קיזוזים, any other unrecognised row stays in the current block
 const SUM_GROUPS = [
-  [/מע"מ|לתשלום|^סה"כ חשבון זה|קודם/, 'סיכום'],
+  [/מע"מ|לתשלום|קודם/, 'סיכום'],
   [/התייקרו/, 'התייקרויות'],
   [/סעיפי חוזה|עבודות לפי חוזה|חריג|מקדמה|הנחה/, 'עבודות']
 ];
 const SUM_COLS = [['cur','סכום לחשבון חלקי (₪)','בחשבון זה'], ['prev','מצטבר קודם (₪)','עד החשבון הקודם'], ['cum','מצטבר נוכחי (₪)','כולל חשבון זה']];   // RTL: first = rightmost
 const OP_NAME = { '+':'הוספה', '-':'הפחתה', '=':'סיכום ביניים' };
+const SUM_ORDER = ['עבודות', 'התייקרויות', 'קיזוזים וניכויים', 'סיכום'];
 function buildSummary(s){
   const info = s.info || {}, has = v => v !== undefined && v !== null && v !== '';
   const template = !(s.rows && s.rows.length) && !Object.keys(info).length;
   const rows = template ? SUM_TEMPLATE : (s.rows || []);
   const dash = '<span class="missing">—</span>';
-  const all = rows.concat(s.offset || []);
+  const all = rows.concat(s.offset || []);   // the חו"ג offset rows are merged into the table (deductions above the payable total)
   const cols = template ? SUM_COLS.slice(0, 3) : SUM_COLS.filter(([k]) => all.some(r => has(r[k])));
   const w = Math.min(22, Math.round(60 / Math.max(cols.length, 1)));
   const fmt = (v, t) => t === 'date' || t === 'text' ? T(v) : t === 'pct' ? `<span class="ltr">${qty(v, 2)}%</span>` : money(v);
@@ -637,27 +638,50 @@ function buildSummary(s){
       rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${has(info[k]) ? fmt(info[k], t) : dash}</td></tr>`).join('')}</table></div>` : '';
   }).join('');
 
-  const thead = `<thead><tr><th scope="col">תיאור</th><th scope="col" style="width:7%"><span class="sr">פעולה</span></th>${
-    cols.map(([, h, sub]) => `<th scope="col" style="width:${w}%">${h}${sub ? `<span class="th2">${sub}</span>` : ''}</th>`).join('')}</tr></thead>`;
+  // the + / − / = sign sits right after סכום לחשבון חלקי (or first, when that column is absent)
+  const opAt = cols[0] && cols[0][0] === 'cur' ? 1 : 0;
+  const withOp = (cells, opCell) => cells.slice(0, opAt).concat(opCell, cells.slice(opAt)).join('');
+  const thead = `<thead><tr><th scope="col">תיאור</th>${withOp(
+    cols.map(([, h, sub]) => `<th scope="col" style="width:${w}%">${h}${sub ? `<span class="th2">${sub}</span>` : ''}</th>`),
+    '<th scope="col" style="width:6%"><span class="sr">פעולה</span></th>')}</tr></thead>`;
   const tr = (r, cls) => {
     const vat = /^מע"מ/.test(r.label);
     const label = vat ? `מע"מ${has(s.vat_rate) ? ` (${L(qty(s.vat_rate, 2) + '%')})` : template ? ' (<span class="missing">%</span>)' : ''}` : T(r.label);
     const op = OP_NAME[r.op] ? r.op : '';
     const cells = cols.map(([k]) => vat && k !== 'cur' && !has(r[k]) ? '<td></td>'
-      : `<td class="num${n(r[k]) < 0 ? ' neg' : ''}">${has(r[k]) ? money(r[k]) : template ? dash : ''}</td>`).join('');
-    return `<tr class="${cls}"><td>${label}</td><td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>${cells}</tr>`;
+      : `<td class="num${n(r[k]) < 0 ? ' neg' : ''}">${has(r[k]) ? money(r[k]) : template ? dash : ''}</td>`);
+    const opCell = `<td class="op op${op === '+' ? 'p' : op === '-' ? 'm' : 'e'}"${op ? ` title="${OP_NAME[op]}" aria-label="${OP_NAME[op]}"` : ''}>${op}</td>`;
+    return `<tr class="${cls}"><td>${label}</td>${withOp(cells, opCell)}</tr>`;
   };
 
-  let body = '', group = '';
-  for(const r of rows){
-    const known = (SUM_GROUPS.find(([re]) => re.test(r.label)) || [])[1];
+  // 1. offset rows (קיזוז חו"ג) join the main table; rows that repeat a main row (סה"כ חשבון זה, סה"כ לתשלום) are dropped
+  const mainLabels = new Set(rows.map(r => r.label));
+  const extra = (s.offset || []).filter(r => !mainLabels.has(r.label));
+  const at = rows.findIndex(r => /קודם/.test(r.label));
+  const merged = at < 0 ? rows.concat(extra) : rows.slice(0, at + 1).concat(extra, rows.slice(at + 1));
+  // 2. block per row: a subtotal (=) closes the current block; anything about indexation (also an offset or an exception) is indexation;
+  //    an unrecognised deduction is a קיזוז; any other unrecognised row stays in the current block
+  let group = '';
+  const tagged = merged.map(r => {
+    const moved = /התייקרו/.test(r.label) && /קיזוז|ניכוי|חריג/.test(r.label) && r.op !== '=';   // indexation offset / exception
+    const known = moved ? 'התייקרויות' : (SUM_GROUPS.find(([re]) => re.test(r.label)) || [])[1];
     const g = (r.op === '=' && group && known !== 'סיכום') ? group : known || (r.op === '-' ? 'קיזוזים וניכויים' : group || 'עבודות');
-    if(g !== group){ group = g; body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`; }
-    const net = /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label), gross = /כולל מע"מ/.test(r.label);
-    body += tr(r, net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '');
+    if(!moved) group = g;
+    return { r, g };
+  });
+  // 3. blocks in a fixed order, so all deductions sit above the payable total; inside the indexation block,
+  //    rows that came from elsewhere go before its subtotals
+  let body = '';
+  for(const g of SUM_ORDER.concat([...new Set(tagged.map(t => t.g))].filter(g => !SUM_ORDER.includes(g)))){
+    let list = tagged.filter(t => t.g === g).map(t => t.r);
+    if(!list.length) continue;
+    if(g === 'התייקרויות') list = list.filter(r => r.op !== '=').concat(list.filter(r => r.op === '='));
+    body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
+    for(const r of list){
+      const net = /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label), gross = /כולל מע"מ/.test(r.label);
+      body += tr(r, net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '');
+    }
   }
-  const offset = (s.offset || []).length ? `<h4>קיזוז חו"ג</h4><table class="grid sumt">${thead}<tbody>${
-    s.offset.map(r => tr(r, r.op === '=' ? 'sub' : '')).join('')}</tbody></table>` : '';
 
   return `<h4>טבלה מסכמת</h4>
   ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
@@ -666,7 +690,6 @@ function buildSummary(s){
     ${thead}
     <tbody>${body}</tbody>
   </table>
-  ${offset}
   <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
 }
 
