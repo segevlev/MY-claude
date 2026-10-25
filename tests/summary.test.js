@@ -57,6 +57,12 @@ for(const [name, summary] of Object.entries(fixtures)){
   ok(!lab.slice(at('סיכום')).some(l => /קודם/.test(l)), 'no "מצטבר … קודם" rows in סיכום (the "סה"כ" row shows the previous amount)');
   ok(at('מצטבר לאחר קיזוזים') < 0 || at('מצטבר לאחר קיזוזים') < at('עכבון'), 'the deductions subtotal reads "מצטבר לאחר קיזוזים"');
 }
+// the on-screen page is never cut off: in a narrow window it is scaled to fit
+console.log('layout');
+await p.setViewportSize({ width: 1000, height: 800 });
+await p.evaluate(d => window.__renderDemo(d), { header, items, fin: { groups: {}, summary: fixtures.withPrevious } });
+const fit = await p.evaluate(() => { const m = document.querySelector('.main'); return m.scrollWidth - m.clientWidth; });
+ok(fit <= 1, 'the page preview fits a narrow window (no horizontal overflow)');
 await b.close();
 console.log(failed ? `${failed} failed` : 'all passed');
 process.exit(failed ? 1 : 0);

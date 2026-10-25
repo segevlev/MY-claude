@@ -147,9 +147,9 @@ button,input{font-family:inherit}
 @media (max-width:900px){.layout{flex-direction:column}.side{width:100%;position:static}}
 @media print{
   @page{size:A4;margin:12mm 12mm 14mm;
-    @bottom-left{content:counter(page) " / " counter(pages);font:8pt Arial,sans-serif;color:#8a94a3}}
+    @bottom-left{content:counter(page) " / " counter(pages);font:8pt Arial,sans-serif;color:#8a94a3;direction:ltr;unicode-bidi:isolate}}
   body{background:#fff}.bar,.side{display:none}.layout{padding:0;display:block}.main{overflow:visible}
-  .paper{box-shadow:none;padding:0;width:auto;margin:0}
+  .paper{box-shadow:none;padding:0;width:auto;margin:0;zoom:1 !important}
   #doc{width:100%}
   .html2pdf__page-break{height:0;margin:0;border:0;break-before:page}
   #doc [contenteditable]:focus,#doc:focus{outline:none}
@@ -878,7 +878,7 @@ function render({ header, fin, items }){
     <tbody>${rows}</tbody>
   </table>`;
   $('doc').contentEditable = 'true';
-  $('empty').hidden = true; $('paper').hidden = false;
+  $('empty').hidden = true; $('paper').hidden = false; fitPaper();
   let ps = $('pageStyle'); if(!ps){ ps = document.createElement('style'); ps.id = 'pageStyle'; document.head.appendChild(ps); }
   ps.textContent = `@media print{@page{@bottom-right{content:"${String(d.account_code || '').replace(/[^\w-]/g, '')}";font:8pt Arial,sans-serif;color:#8a94a3}}}`;
 }
@@ -973,6 +973,7 @@ $('dl').onclick = async () => {
   const btn = $('dl'); btn.disabled = true; btn.textContent = 'מכין PDF...';
   const el = $('doc'); el.contentEditable = 'false'; el.classList.add('exporting');
   const sx = window.scrollX, sy = window.scrollY; window.scrollTo(0, 0);   // html2canvas renders blank pages when the window is scrolled
+  $('paper').style.zoom = '';
   const unpaginate = paginateItems(el);
   const code = (lastData?.header?.doc?.account_code || 'invoice').replace(/[^\w-]/g,'');
   const fname = `invoice_${code}.pdf`;
@@ -1000,8 +1001,18 @@ $('dl').onclick = async () => {
       <a class="btn" href="${blobUrl}" target="_blank" rel="noopener">פתיחה בלשונית חדשה</a>`, false);
   }catch(e){
     exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
-  }finally{ unpaginate(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורדה ישירה (PDF כתמונה)'; }
+  }finally{ unpaginate(); fitPaper(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורדה ישירה (PDF כתמונה)'; }
 };
+
+/* the on-screen page is a fixed A4 width; when the space next to the side panel is narrower, shrink it to fit
+   (print and the PDF export always use the real size) */
+function fitPaper(){
+  const paper = $('paper'), main = paper && paper.parentElement; if(!paper || paper.hidden) return;
+  paper.style.zoom = 1;
+  const z = Math.min(1, (main.clientWidth - 4) / paper.offsetWidth);
+  paper.style.zoom = z < 1 ? z.toFixed(3) : '';
+}
+window.addEventListener('resize', fitPaper);
 
 /* test hook */
 window.__renderDemo = data => { lastData = data; render(data); runChecks(data); $('exportBox').hidden=false; };

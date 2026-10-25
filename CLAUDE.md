@@ -26,6 +26,8 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
      - **Print CSS:** `@page` adds "page / pages" bottom-left and the account number bottom-right (`#pageStyle`, set per invoice). Rows, cards, signatures and the title bar never split, `thead` repeats, and `document.title` becomes the file name.
      - **Page 1:** the spacing is tuned so that page 1 (header, details, KPIs, summary table, signatures) fits one sheet.
    - **Direct download (html2pdf, an image PDF).**
+   - **Preview:** `fitPaper` shrinks the A4 page (CSS `zoom`) to the space next to the side panel, so it is never cut off. Print and the direct download use the real size.
+   - **Footer counter:** it is `direction:ltr`, so it reads "2 / 9".
    - **Scroll:** the window is scrolled to the top during export, with `scrollX/scrollY: 0`. html2canvas renders blank pages when the window is scrolled.
    - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
    - **Repeated header:** `paginateItems` splits the items table into page-sized tables, each with its own header and with page breaks between them. A group heading moves with the row after it. The table is restored after the export. The print dialog repeats `thead` natively.
