@@ -49,10 +49,11 @@ These were set by the user, and some were broken once and had to be fixed again.
    - a regular row without an amount for this invoice gets סכום לחשבון חלקי = 0 and מצטבר קודם = מצטבר נוכחי;
    - a subtotal without one gets the running sum of the rows above it;
    - when the solver cannot split two rows, the checks panel says so.
-4. **Retention** (עכבון) is its own block, last before סיכום, closing with "סה"כ כולל עכבון".
+4. **Retention** (עכבון) is its own block, last before סיכום.
 5. **Deductions:** the deductions block closes with "מצטבר לאחר קיזוזים", which excludes retention.
 6. **Hidden rows:** "סה"כ חשבון זה" and the "מצטבר … קודם" rows of סיכום are not shown. The "סה"כ" row covers them.
 7. **The pre-VAT total** reads "סה"כ", and every column of it is filled.
+9. **The total is shown once.** A subtotal that closes the last block before סיכום and equals "סה"כ" in every column is not shown. This covers "מצטבר לאחר קיזוזים" and the retention total.
 8. **Duplicate row:** "… חשבון נוכחי (מצטבר: X)" is the current amount of the row whose cumulative is X. It is not shown as its own row.
 
 ## Summary table (טבלה מסכמת)

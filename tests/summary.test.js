@@ -48,7 +48,8 @@ for(const [name, summary] of Object.entries(fixtures)){
   ok(row('פחות התאמת התייקרות').cells[1] === '0' && row('פחות התאמת התייקרות').cells[3] === row('פחות התאמת התייקרות').cells[4],
     'unknown current amount → 0, previous = current cumulative');
   ok(at('עכבון') > at('קיזוזים וניכויים') && at('עכבון') < at('סיכום'), 'retention is its own block, after the deductions and before סיכום');
-  ok(at('סה"כ כולל עכבון') > at('פחות עכבון') && at('סה"כ כולל עכבון') < at('סיכום'), 'retention block closes with "סה"כ כולל עכבון"');
+  { const before = t.rows[at('סיכום') - 1], tc = tot && tot.cells.slice(1).join('|');
+    ok(!(before && before.cls === 'sub' && before.cells.slice(1).join('|') === tc), 'the total is shown once: no identical subtotal right above סיכום'); }
   ok(at('סה"כ חשבון זה') < 0, '"סה"כ חשבון זה" is not shown');
   ok(tot && tot.cls === 'final' && tot.cells.slice(1).every(c => c !== ''), 'the "סה"כ" row has every column filled' + (tot ? ' [' + tot.cells.join(' | ') + ']' : ''));
   ok(at('סה"כ לתשלום') < 0, 'the total reads "סה"כ", not "סה"כ לתשלום"');

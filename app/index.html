@@ -762,7 +762,7 @@ function buildSummary(s){
   const netRow = merged.find(isNet);
 
   // 3. blocks in a fixed order (SUM_ORDER), so all deductions sit above the total
-  let body = '';
+  let body = ''; const blocks = [];
   for(const g of SUM_ORDER.concat([...new Set(tagged.map(t => t.g))].filter(g => !SUM_ORDER.includes(g)))){
     let list = tagged.filter(t => t.g === g).map(t => t.r)
       .filter(r => template || !(/^סה"כ חשבון זה$/.test(r.label) || (g === 'סיכום' && /קודם/.test(r.label))));   // both are shown by the "סה"כ" row
@@ -789,10 +789,17 @@ function buildSummary(s){
         list = list.map((r, i) => i === k ? o : r);
       }
     }
-    if(g === 'עכבון' && !template){   // the retention block closes with "סה"כ כולל עכבון" (= the total after retention)
-      const t = totalRow(netRow || {});
-      list = list.concat({ label: 'סה"כ כולל עכבון', op: '=', cur: t.cur, prev: t.prev, cum: t.cum });
-    }
+    blocks.push({ g, list });
+  }
+  // RULE (user): the total is shown once. A subtotal that closes the last block before סיכום and equals "סה"כ" in every column
+  // (e.g. "מצטבר לאחר קיזוזים" or the retention total) is not shown – the "סה"כ" row below it is the total.
+  if(!template && netRow){
+    const t = totalRow(netRow), last = blocks.filter(b => b.g !== 'סיכום').pop();
+    const end = last && last.list[last.list.length - 1];
+    if(end && end.op === '=' && ['cur', 'prev', 'cum'].every(c => !has(end[c]) || !has(t[c]) || Math.abs(n(end[c]) - n(t[c])) < 0.01)) last.list.pop();
+  }
+  for(const { g, list } of blocks){
+    if(!list.length) continue;
     body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
     for(const r of list){
       const net = isNet(r), gross = /כולל מע"מ/.test(r.label);
