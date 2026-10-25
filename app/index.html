@@ -108,14 +108,16 @@ button,input{font-family:inherit}
 .mini{display:flex;justify-content:space-between;border-bottom:2px solid var(--navy);padding-bottom:6px;margin-bottom:8px;font-size:8.5pt;color:#55606f}
 .mini b{color:var(--navy);font-size:11pt}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.si{display:flex;gap:10px;margin-bottom:8px}
-.si-card{flex:1;min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.si{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:8px}
+.si-card{min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.si .kv td.txt{white-space:normal;text-align:right}
 .si-t{background:var(--soft);color:var(--navy);font-weight:bold;padding:5px 8px;border-bottom:2px solid var(--amber);font-size:9pt}
 .si .kv td{border-width:0 0 1px;font-size:8.6pt;padding:3px 8px}
 .si .kv tr:last-child td{border-bottom:0}
 .si .kv td:first-child{background:#fff;width:auto;white-space:normal}
 .si .kv td:last-child{white-space:nowrap}
-.sumt{font-size:9.6pt}
+.sumt{font-size:9.6pt;table-layout:fixed}
+#doc table{max-width:100%}
 .sumt th{font-size:9pt;vertical-align:bottom}
 .sumt .th2{display:block;font-weight:normal;font-size:7.6pt;color:#c9d4e3;margin-top:2px}
 .sumt td{padding:4px 9px}
@@ -154,7 +156,7 @@ button,input{font-family:inherit}
   .html2pdf__page-break{height:0;margin:0;border:0;break-before:page}
   #doc [contenteditable]:focus,#doc:focus{outline:none}
   .missing{color:transparent}
-  tr,.kpis,.si-card,.sign,.note,.d-title,.two,.d-top{break-inside:avoid}
+  tr,.kpis,.si-card,.sign,.note,.d-title,.two,.d-top,.sum-block{break-inside:avoid}
   #doc h4,.mini,tr.sg,tr.s1,tr.s2,tr.s3{break-after:avoid}
   thead{display:table-header-group}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -700,7 +702,7 @@ function buildSummary(s){
   const infoHtml = SUM_INFO.map(g => {
     const rs = g.rows.filter(([k]) => template || has(info[k]));
     return rs.length ? `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
-      rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="num">${has(info[k]) ? fmt(info[k], t) : dash}</td></tr>`).join('')}</table></div>` : '';
+      rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="${t === 'text' ? 'txt' : 'num'}">${has(info[k]) ? fmt(info[k], t) : dash}</td></tr>`).join('')}</table></div>` : '';
   }).join('');
 
   // the + / − / = sign sits right after סכום לחשבון חלקי (or first, when that column is absent)
@@ -816,14 +818,14 @@ function buildSummary(s){
     }
   }
 
-  return `<h4>טבלה מסכמת</h4>
+  return `<div class="sum-block"><h4>טבלה מסכמת</h4>
   ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
   <table class="grid sumt">
     <caption class="sr">טבלה מסכמת: סכומי החשבון לפי רכיב</caption>
     ${thead}
     <tbody>${body}</tbody>
   </table>
-  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div>`;
+  <div class="small" style="text-align:center">+ הוספה &nbsp;·&nbsp; − הפחתה &nbsp;·&nbsp; = סיכום ביניים</div></div>`;
 }
 
 function render({ header, fin, items }){
@@ -983,7 +985,7 @@ $('dl').onclick = async () => {
       image:{type:'jpeg',quality:0.96},
       html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,scrollX:0,scrollY:0},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-      pagebreak:{mode:['css','legacy'], avoid:['tr','.kpis','.sign','.note']}
+      pagebreak:{mode:['css','legacy'], avoid:['.sum-block','tr','.kpis','.sign','.note']}
     }).from(el).toPdf().get('pdf');
     const tot = pdf.internal.getNumberOfPages();
     for(let i=1;i<=tot;i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(140);

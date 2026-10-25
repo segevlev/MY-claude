@@ -28,6 +28,8 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
    - **Direct download (html2pdf, an image PDF).**
    - **Preview:** `fitPaper` shrinks the A4 page (CSS `zoom`) to the space next to the side panel, so it is never cut off. Print and the direct download use the real size.
    - **Footer counter:** it is `direction:ltr`, so it reads "2 / 9".
+   - **Summary block:** the summary (title, cards, table, legend) is one `.sum-block` that is never split across pages. If it doesn't fit on page 1 it moves whole to the next page, in print and in the direct download.
+   - **Cards and tables:** the cards above the summary table are a two-column grid. Tables never get wider than the page (`table-layout:fixed`, `max-width:100%`).
    - **Scroll:** the window is scrolled to the top during export, with `scrollX/scrollY: 0`. html2canvas renders blank pages when the window is scrolled.
    - **RTL text:** `#doc.exporting *{letter-spacing:.01px}` forces per-character rendering. Otherwise RTL text loses its spaces.
    - **Repeated header:** `paginateItems` splits the items table into page-sized tables, each with its own header and with page breaks between them. A group heading moves with the row after it. The table is restored after the export. The print dialog repeats `thead` natively.
