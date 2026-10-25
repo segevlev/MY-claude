@@ -40,11 +40,14 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
   - **Block order:** blocks are rendered in the fixed order `SUM_ORDER`, so all deductions sit above the payable total.
   - **Offset rows:** the חו"ג offset rows are merged into the main table right after the "קודם" row, and rows that repeat a main label are dropped.
   - **Signs:** the + / − / = column sits between סכום לחשבון חלקי and the cumulative columns.
+- **Hidden row:** "סה"כ חשבון זה" is not shown, because the "סה"כ" row covers it.
 - **Emphasis:** the pre-VAT total is the emphasised row. It is labelled "סה"כ" and every column is summed, as a running sum over the rows above it in the invoice's own order (a `=` row replaces the sum). The invoice's own figures win. The incl.-VAT total is a quiet row.
 - **Parsing:** `parseInvoice` fills `fin.summary` from the payment page (op inferred from the label). The single amount column is split by `splitRows` into cum / prev / cur.
   - **Row kinds:** rows up to the first "קודם" row are cumulative. That row is the previous total. Rows after it are this invoice's amounts.
   - **Current amounts:** for works (עבודות לפי חוזה) it is Σ סכום נוכחי of the BOQ (`boq_cur`), used only when the other works rows are 0. For indexation it is this invoice's "התייקרות שוטפת" in the indexation table (`idx_cur`).
-  - **Other rows:** rows with amount 0 → 0. Subtotals (=) are running sums. The previous amount is cum − cur.
+  - **Other rows:** rows with amount 0 → 0.
+  - **Solving from subtotals:** each subtotal (=) equals the subtotal before it plus the rows between them. When exactly one value in such a segment is unknown, it is solved, repeated until nothing changes. Two subtotals in a row with the same amount share the current amount. The previous amount is cum − cur.
+  - **Signs:** a deduction already written as a negative amount is added as is.
   - **Fallbacks:** when the previous total is 0, prev = 0. Otherwise the total right above "קודם" is split by the previous total.
   - **Checks:** `runChecks` compares the computed previous total and invoice amount with the invoice's "מצטבר בחשבון קודם" and "סה"כ לתשלום". The main column becomes `rows`, the חו"ג offset table becomes `offset`, plus contract scope, % execution and index linkage. The ERP writes gershayim as a single quote (סה'כ), which is normalised to ".
 - **Columns:** right to left: סכום לחשבון חלקי, מצטבר קודם, מצטבר נוכחי (`SUM_COLS`), so it reads חשבון + קודם = נוכחי. Only columns that have data are shown.

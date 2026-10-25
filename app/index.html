@@ -466,26 +466,50 @@ function parseInvoice(pages){
   // and rows after it (סה"כ לתשלום, מע"מ...) are amounts for this invoice.
   // A cumulative row's current amount comes from known(); a subtotal (=) is the running sum of the rows above it.
   // previous = cumulative − current. When the previous total is 0 (first invoice) every row has prev 0, cur = cum.
+  // A deduction written as a positive amount is subtracted; one already written as a negative amount is added as is.
+  const signed = (o, v) => o.op === '-' && n(v) > 0 ? -n(v) : n(v);
   const splitRows = (list, known) => {
     const pi = list.findIndex(r => /קודם/.test(r.label)), prevTotal = pi >= 0 ? list[pi].amount : undefined;
-    let acc = 0, seen = false;   // running sum for subtotals; NaN once a component is unknown
-    return list.map((r, i) => {
+    const out = list.map((r, i) => {
       const label = /^מע"מ/.test(r.label) ? 'מע"מ' : r.label, o = { label, op: op(r.label) };
       if(pi >= 0 && i === pi) o.prev = r.amount;
       else if(pi >= 0 && i > pi) o.cur = r.amount;
       else {
         o.cum = r.amount;
-        const k = r.amount === 0 ? 0 : known(r, list);
-        let cur = o.op === '=' ? (k !== undefined ? k : seen && !isNaN(acc) ? acc : undefined) : k;
-        if(cur === undefined && prevTotal === 0) cur = r.amount;
-        if(cur === undefined && pi >= 0 && i === pi - 1) cur = r.amount - prevTotal;   // the total right above "קודם" is what it is subtracted from
-        if(o.op === '=') acc = cur === undefined ? NaN : cur;
-        else acc = cur === undefined ? NaN : acc + (o.op === '-' ? -cur : cur);
-        seen = true;
-        if(cur !== undefined){ o.cur = Math.round(cur * 100) / 100; o.prev = Math.round((r.amount - cur) * 100) / 100; }
+        o.cur = r.amount === 0 ? 0 : prevTotal === 0 ? r.amount : known(r, list);
+        if(o.cur === undefined && pi >= 0 && i === pi - 1 && o.op === '=') o.cur = r.amount - prevTotal;   // the total right above "קודם" is what it is subtracted from
       }
       return o;
     });
+    // solve the rest from the subtotals: a subtotal = the subtotal before it + the rows between them.
+    // When exactly one value in such a segment is unknown, it is solved; repeat until nothing changes.
+    const idx = out.map((o, i) => i).filter(i => out[i].cum !== undefined);
+    const has = v => v !== undefined && !isNaN(v);
+    for(let pass = 0, changed = true; changed && pass < 10; pass++){
+      changed = false;
+      let start = -1;
+      for(const i of idx){
+        if(out[i].op !== '=') continue;
+        const comps = idx.filter(k => k > start && k < i), R = out[i], B = start >= 0 ? out[start] : { cur: 0 };
+        if(!comps.length && start >= 0 && Math.abs(n(B.cum) - n(R.cum)) < 0.01){   // two subtotals in a row with the same amount
+          if(has(B.cur) && !has(R.cur)){ R.cur = B.cur; changed = true; }
+          else if(has(R.cur) && !has(B.cur)){ B.cur = R.cur; changed = true; }
+        } else {
+          const unk = comps.filter(k => !has(out[k].cur)), sum = comps.filter(k => has(out[k].cur)).reduce((t, k) => t + signed(out[k], out[k].cur), 0);
+          if(has(B.cur) && !unk.length && !has(R.cur)){ R.cur = B.cur + sum; changed = true; }
+          else if(has(B.cur) && has(R.cur) && unk.length === 1){
+            const u = out[unk[0]], x = R.cur - B.cur - sum;   // its signed contribution
+            u.cur = u.op === '-' && n(u.cum) > 0 ? -x : x; changed = true;
+          }
+          else if(!has(B.cur) && start >= 0 && has(R.cur) && !unk.length){ B.cur = R.cur - sum; changed = true; }
+        }
+        start = i;
+      }
+    }
+    for(const o of out) if(o.cum !== undefined){
+      if(has(o.cur)){ o.cur = Math.round(o.cur * 100) / 100; o.prev = Math.round((o.cum - o.cur) * 100) / 100; } else delete o.cur;
+    }
+    return out;
   };
   const worksRow = r => /עבודות לפי חוזה|^סעיפי חוזה/.test(r.label);
   const mainKnown = (r, list) => {
@@ -682,7 +706,7 @@ function buildSummary(s){
       if(t.g === 'סיכום') continue;
       const v = t.r[k];
       if(v === undefined || v === null || v === ''){ if(t.r.op !== '=') ok = false; continue; }
-      acc = t.r.op === '=' ? n(v) : acc + (t.r.op === '-' ? -n(v) : n(v));
+      acc = t.r.op === '=' ? n(v) : acc + (t.r.op === '-' && n(v) > 0 ? -n(v) : n(v));   // a deduction already written as negative is added as is
       if(t.r.op === '=') ok = true;
     }
     if(ok && tagged.some(t => t.g !== 'סיכום')) tot[k] = Math.round(acc * 100) / 100;
@@ -691,7 +715,7 @@ function buildSummary(s){
 
   let body = '';
   for(const g of SUM_ORDER.concat([...new Set(tagged.map(t => t.g))].filter(g => !SUM_ORDER.includes(g)))){
-    let list = tagged.filter(t => t.g === g).map(t => t.r);
+    let list = tagged.filter(t => t.g === g).map(t => t.r).filter(r => template || !/^סה"כ חשבון זה$/.test(r.label));   // shown by the "סה"כ" row
     if(!list.length) continue;
     if(g === 'התייקרויות') list = list.filter(r => r.op !== '=').concat(list.filter(r => r.op === '='));
     body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
