@@ -53,6 +53,13 @@ for(const [name, summary] of Object.entries(fixtures)){
   ok(at('סה"כ חשבון זה') < 0, '"סה"כ חשבון זה" is not shown');
   ok(tot && tot.cls === 'final' && tot.cells.slice(1).every(c => c !== ''), 'the "סה"כ" row has every column filled' + (tot ? ' [' + tot.cells.join(' | ') + ']' : ''));
   ok(at('סה"כ לתשלום') < 0, 'the total reads "סה"כ", not "סה"כ לתשלום"');
+  { // "סה"כ" = the columns as displayed: a subtotal sets the running sum, + / − rows add and subtract
+    const num = x => parseFloat(String(x).replace(/,/g, '')) || 0, acc = [0, 0, 0];
+    for(const r of t.rows.slice(0, at('סיכום'))){ if(r.cls === 'sg') continue;
+      [1, 3, 4].forEach((ci, j) => { if(r.cells[ci] === '') return; const v = num(r.cells[ci]);
+        acc[j] = r.cells[2] === '=' ? v : acc[j] + (r.cells[2] === '-' && v > 0 ? -v : v); }); }
+    const got = tot ? [1, 3, 4].map(ci => num(tot.cells[ci])) : [];
+    ok(tot && got.every((v, j) => Math.abs(v - acc[j]) < 0.02), `"סה"כ" sums every column as displayed [${acc.map(v => v.toFixed(2)).join(' | ')}]`); }
   ok(lab.includes('פחות התאמת התייקרות מצטברת') && row('פחות התאמת התייקרות').cells[1] === '0', 'whole numbers have no decimals (0, not 0.00)');
   ok(!lab.slice(at('סיכום')).some(l => /קודם/.test(l)), 'no "מצטבר … קודם" rows in סיכום (the "סה"כ" row shows the previous amount)');
   ok(at('מצטבר לאחר קיזוזים') < 0 || at('מצטבר לאחר קיזוזים') < at('עכבון'), 'the deductions subtotal reads "מצטבר לאחר קיזוזים"');

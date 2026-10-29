@@ -111,6 +111,8 @@ button,input{font-family:inherit}
 .si{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:8px}
 .si-card{min-width:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
 .si .kv td.txt{white-space:normal;text-align:right}
+.si .kv.basket tr.bh td{font-size:7.6pt;color:var(--mute);background:#fff;font-weight:normal}
+.si .kv.basket td:first-child{width:auto}
 .si-t{background:var(--soft);color:var(--navy);font-weight:bold;padding:5px 8px;border-bottom:2px solid var(--amber);font-size:9pt}
 .si .kv td{border-width:0 0 1px;font-size:8.6pt;padding:3px 8px}
 .si .kv tr:last-child td{border-bottom:0}
@@ -134,6 +136,9 @@ button,input{font-family:inherit}
 .items{font-size:7.8pt;table-layout:fixed;width:100%}
 .items td{overflow-wrap:anywhere}
 .items th{overflow-wrap:normal;word-break:keep-all}
+.items tr.pspace{display:none}
+.items tr.ihead th{background:#fff;border:0;padding:0 0 6px;text-align:right;color:var(--ink)}
+.items tr.ihead .mini{margin:0;font-weight:normal}
 .items th{padding:4px 2px;font-size:7.2pt;line-height:1.2;vertical-align:bottom}
 .items td.code{color:#55606f;white-space:nowrap;direction:ltr;text-align:right;font-size:7.4pt;padding:4px 3px}
 .items td.c{text-align:center}
@@ -150,11 +155,15 @@ button,input{font-family:inherit}
 
 @media (max-width:900px){.layout{flex-direction:column}.side{width:100%;position:static}}
 @media print{
-  @page{size:A4;margin:12mm 12mm 14mm;
+  @page{size:A4;margin:0 12mm 14mm;
     @bottom-left{content:counter(page) " / " counter(pages);font:8pt Arial,sans-serif;color:#8a94a3;direction:ltr;unicode-bidi:isolate}}
   body{background:#fff}.bar,.side{display:none}.layout{padding:0;display:block}.main{overflow:visible}
   .paper{box-shadow:none;padding:0;width:auto;margin:0;zoom:1 !important}
   #doc{width:100%}
+  .p1{padding-top:12mm;zoom:var(--p1z,1)}
+  .html2pdf__page-break + *{margin-top:12mm !important}
+  .html2pdf__page-break + table.items{margin-top:0 !important}
+  .items tr.pspace{display:table-row}.items tr.pspace th{height:12mm;padding:0;background:#fff;border:0}
   .html2pdf__page-break{height:0;margin:0;border:0;break-before:page}
   #doc [contenteditable]:focus,#doc:focus{outline:none}
   .missing{color:transparent}
@@ -473,8 +482,9 @@ function parseInvoice(pages){
   let idxCur;
   const idxH = find(/^הת(י{1,2})קרות שוטפת/);
   if(idxH){
-    const row = P[idxH.p].filter(i => i.y < idxH.y && i.x > 520 && i.s === String(doc.seq))[0];   // first column = invoice number
-    if(row){ const nums = P[idxH.p].filter(i => Math.abs(i.y - row.y) < 3 && isNum(i.s) && i !== row).sort((a,b) => a.x - b.x); if(nums.length) idxCur = num(nums[0].s); }
+    const rowsSeq = P[idxH.p].filter(i => i.y < idxH.y && i.x > 520 && i.s === String(doc.seq));   // first column = invoice number (one row per index)
+    for(const row of rowsSeq){ const nums = P[idxH.p].filter(i => Math.abs(i.y - row.y) < 3 && isNum(i.s) && i !== row).sort((a,b) => a.x - b.x);
+      if(nums.length) idxCur = (idxCur || 0) + num(nums[0].s); }
   }
   fin.boq_cum = boqCum; fin.boq_cur = boqCur; fin.idx_cur = idxCur;
   // split one amount column into מצטבר נוכחי / מצטבר קודם / סכום לחשבון חלקי.
@@ -569,6 +579,26 @@ function parseInvoice(pages){
     if(m){ sinfo.index = m[1]; sinfo.index_base = `${qty(parseFloat(m[2]), 4)} (${m[3]})`; } else sinfo.index = tidy(indexed); }
   if(base && !sinfo.index_base){ const bl = P[base.p].filter(i => Math.abs(i.y - base.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' ');
     const m = bl.match(/ערך בסיס:?\s*([\d.]+)/) || bl.match(/([\d]+\.\d{4})/); if(m) sinfo.index_base = qty(parseFloat(m[1]), 4); }
+  // index basket: every "מדד בסיס: <name> <month>, ערך בסיס: <value>" section of the indexation table, with its share –
+  // a percentage written on the line, else its share of the amount subject to indexation ("סה"כ לערך בסיס" of the section)
+  if(idxH){
+    const pg = P[idxH.p], hAmt = pg.find(i => /הסכום להתייקרות/.test(i.s));
+    const lines = pg.filter(i => /מדד בסיס/.test(i.s)).sort((a,b) => b.y - a.y);
+    const indices = lines.map((li, k) => {
+      const t = tidy(pg.filter(i => Math.abs(i.y - li.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' '));
+      const name = (t.match(/מדד בסיס:?\s*(.*?)(?:\s+\d{1,2}\/\d{2,4}|\s*,|\s+ערך|$)/) || [])[1] || '';
+      const month = (t.match(/(\d{1,2}\/\d{2,4})/) || [])[1] || '';
+      const bv = t.match(/ערך בסיס:?\s*([\d.]+)/) || t.match(/(\d+\.\d{3,4})/);
+      const pm = t.match(/(\d+(?:\.\d+)?)\s*%/) || t.match(/הצמדה:?\s*(\d+(?:\.\d+)?)/);
+      const next = lines[k + 1] ? lines[k + 1].y : -Infinity;
+      const tot = pg.find(i => /סה"?'?כ לערך בסיס/.test(i.s.replace(/'/g, '"')) && i.y < li.y && i.y > next);
+      let amt; if(tot && hAmt){ const ns = pg.filter(i => Math.abs(i.y - tot.y) < 3 && isNum(i.s)); if(ns.length) amt = num(ns.reduce((b, x) => Math.abs(x.c - hAmt.c) < Math.abs(b.c - hAmt.c) ? x : b).s); }
+      return { name: name.trim(), month, base: bv ? parseFloat(bv[1]) : undefined, pct: pm ? parseFloat(pm[1]) : undefined, amt };
+    }).filter(x => x.name);
+    const sumAmt = indices.reduce((t, x) => t + (x.amt || 0), 0);
+    for(const x of indices) if(x.pct === undefined && sumAmt && x.amt !== undefined) x.pct = Math.round(x.amt / sumAmt * 10000) / 100;
+    if(indices.length) sinfo.indices = indices.sort((a, b) => (b.pct || 0) - (a.pct || 0));
+  }
   const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
   fin.summary = {
     info: sinfo,
@@ -663,7 +693,27 @@ function buildItems(items, groups){
 }
 
 /* ---------- summary table (טבלה מסכמת) ----------
-   const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
+   // index basket: every "מדד בסיס: <name> <month>, ערך בסיס: <value>" section of the indexation table, with its share –
+  // a percentage written on the line, else its share of the amount subject to indexation ("סה"כ לערך בסיס" of the section)
+  if(idxH){
+    const pg = P[idxH.p], hAmt = pg.find(i => /הסכום להתייקרות/.test(i.s));
+    const lines = pg.filter(i => /מדד בסיס/.test(i.s)).sort((a,b) => b.y - a.y);
+    const indices = lines.map((li, k) => {
+      const t = tidy(pg.filter(i => Math.abs(i.y - li.y) < 3).sort((a,b) => b.x - a.x).map(i => i.s).join(' '));
+      const name = (t.match(/מדד בסיס:?\s*(.*?)(?:\s+\d{1,2}\/\d{2,4}|\s*,|\s+ערך|$)/) || [])[1] || '';
+      const month = (t.match(/(\d{1,2}\/\d{2,4})/) || [])[1] || '';
+      const bv = t.match(/ערך בסיס:?\s*([\d.]+)/) || t.match(/(\d+\.\d{3,4})/);
+      const pm = t.match(/(\d+(?:\.\d+)?)\s*%/) || t.match(/הצמדה:?\s*(\d+(?:\.\d+)?)/);
+      const next = lines[k + 1] ? lines[k + 1].y : -Infinity;
+      const tot = pg.find(i => /סה"?'?כ לערך בסיס/.test(i.s.replace(/'/g, '"')) && i.y < li.y && i.y > next);
+      let amt; if(tot && hAmt){ const ns = pg.filter(i => Math.abs(i.y - tot.y) < 3 && isNum(i.s)); if(ns.length) amt = num(ns.reduce((b, x) => Math.abs(x.c - hAmt.c) < Math.abs(b.c - hAmt.c) ? x : b).s); }
+      return { name: name.trim(), month, base: bv ? parseFloat(bv[1]) : undefined, pct: pm ? parseFloat(pm[1]) : undefined, amt };
+    }).filter(x => x.name);
+    const sumAmt = indices.reduce((t, x) => t + (x.amt || 0), 0);
+    for(const x of indices) if(x.pct === undefined && sumAmt && x.amt !== undefined) x.pct = Math.round(x.amt / sumAmt * 10000) / 100;
+    if(indices.length) sinfo.indices = indices.sort((a, b) => (b.pct || 0) - (a.pct || 0));
+  }
+  const offSplit = splitRows(fin.offset_rows || [], r => curByLabel[r.label]);
   fin.summary = { info:{key:value}, rows:[{label, op, cur, cum, prev | amt}], vat_rate, offset:[rows] }
    rows come in the order of the invoice; only what the invoice has is shown (fields, rows, cards and columns).
    With no summary data at all, the full catalogue below is shown as an empty template. */
@@ -702,6 +752,10 @@ function buildSummary(s){
   const fmt = (v, t) => t === 'date' || t === 'text' ? T(v) : t === 'pct' ? `<span class="ltr">${qty(v, 2)}%</span>` : money(v);
 
   const infoHtml = SUM_INFO.map(g => {
+    if(g.title === 'הצמדה' && (info.indices || []).length > 1)   // index basket: one row per index, by its share
+      return `<div class="si-card"><div class="si-t">הצמדה – סל מדדים</div><table class="kv basket">
+        <tr class="bh"><td>מדד (חודש בסיס)</td><td>% הצמדה</td><td>ערך בסיס</td></tr>${info.indices.map(x =>
+        `<tr><td>${T(x.name)}${x.month ? ` <span class="ltr">(${esc(x.month)})</span>` : ''}</td><td class="num">${x.pct !== undefined ? qty(x.pct, 2) + '%' : ''}</td><td class="num">${x.base !== undefined ? qty(x.base, 4) : ''}</td></tr>`).join('')}</table></div>`;
     const rs = g.rows.filter(([k]) => template || has(info[k]));
     return rs.length ? `<div class="si-card"><div class="si-t">${g.title}</div><table class="kv">${
       rs.map(([k, l, t]) => `<tr><td>${l}</td><td class="${t === 'text' ? 'txt' : 'num'}">${has(info[k]) ? fmt(info[k], t) : dash}</td></tr>`).join('')}</table></div>` : '';
@@ -804,10 +858,24 @@ function buildSummary(s){
     }
     blocks.push({ g, list });
   }
+  // RULE (user): "סה"כ" sums every column as displayed – each subtotal shown sets the running sum, each row below it adds / subtracts
+  const shownTot = {};
+  if(!template){
+    for(const c of ['cur', 'prev', 'cum']){
+      let acc = 0, ok = false;
+      for(const b of blocks) if(b.g !== 'סיכום') for(const r of b.list){
+        if(!has(r[c])) continue;
+        acc = r.op === '=' ? n(r[c]) : acc + sv(r, c); ok = true;
+      }
+      if(ok) shownTot[c] = r2(acc);
+    }
+    s.shown_total = shownTot;
+  }
+  const totalRowShown = r => { const o = totalRow(r); for(const c in shownTot) o[c] = shownTot[c]; return o; };
   // RULE (user): the total is shown once. A subtotal that closes the last block before סיכום and equals "סה"כ" in every column
   // (e.g. "מצטבר לאחר קיזוזים" or the retention total) is not shown – the "סה"כ" row below it is the total.
   if(!template && netRow){
-    const t = totalRow(netRow), last = blocks.filter(b => b.g !== 'סיכום').pop();
+    const t = totalRowShown(netRow), last = blocks.filter(b => b.g !== 'סיכום').pop();
     const end = last && last.list[last.list.length - 1];
     if(end && end.op === '=' && ['cur', 'prev', 'cum'].every(c => !has(end[c]) || !has(t[c]) || Math.abs(n(end[c]) - n(t[c])) < 0.01)) last.list.pop();
   }
@@ -816,12 +884,13 @@ function buildSummary(s){
     body += `<tr class="sg"><td colspan="${cols.length + 2}">${g}</td></tr>`;
     for(const r of list){
       const net = isNet(r), gross = /כולל מע"מ/.test(r.label);
-      body += tr(net && !template ? totalRow(r) : r, net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '');
+      body += tr(net && !template ? totalRowShown(r) : r, net ? 'final' : gross ? 'quiet' : r.op === '=' ? 'sub' : '');
     }
   }
 
-  return `<div class="sum-block"><h4>טבלה מסכמת</h4>
+  return `<div class="sum-block">
   ${infoHtml ? `<div class="si">${infoHtml}</div>` : ''}
+  <h4>טבלה מסכמת</h4>
   <table class="grid sumt">
     <caption class="sr">טבלה מסכמת: סכומי החשבון לפי רכיב</caption>
     ${thead}
@@ -842,7 +911,7 @@ function render({ header, fin, items }){
     ? `<div class="brand"><img src="${logoData}" alt=""><div><div class="bname" style="font-size:16pt">${esc(c.name)}</div></div></div>`
     : `<div class="brand"><div class="mark"><i></i><i></i><i></i></div><div><div class="bname">${esc(c.name)}</div></div></div>`;
 
-  $('doc').innerHTML = `
+  $('doc').innerHTML = `<div class="p1">
   <div class="d-top">${brand}
     <div class="cdet">${cd([
       ['כתובת', T([c.address, c.city_zip].filter(Boolean).join(', '))],
@@ -867,7 +936,7 @@ function render({ header, fin, items }){
   ${buildSummary(fin.summary || {})}
   ${fin.disclaimer ? `<div class="note">${esc(fin.disclaimer)}</div>` : ''}
   <div class="sign"><div>הוכן ע"י</div><div>נבדק ע"י מנהל הפרויקט</div><div>אושר ע"י מורשה חתימה</div></div>
-
+  </div>
 
   <div class="html2pdf__page-break"></div>
   ${structures.length ? `<div class="mini"><b>ריכוז לפי מבנה</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
@@ -876,14 +945,18 @@ function render({ header, fin, items }){
     <tbody>${structures.map(g => `<tr><td>סה"כ למבנה: ${L(g.code)} ${T(g.name)}</td><td class="num">${money(g.cur)}</td><td class="num">${money(g.total)}</td></tr>`).join('')}
       ${structures.length > 1 ? `<tr class="grand"><td>סה"כ</td><td class="num">${money(structures.reduce((t, g) => t + g.cur, 0))}</td><td class="num">${money(structures.reduce((t, g) => t + g.total, 0))}</td></tr>` : ''}</tbody>
   </table>` : ''}
-  <div class="mini" style="margin-top:18px"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div>
+
+  <div class="html2pdf__page-break"></div>
   <table class="grid items">
-    <thead><tr>${ITEM_COLS.map(c => `<th${c.w ? ` style="width:${c.w}%"` : ''}>${c.h}</th>`).join('')}</tr></thead>
+    <colgroup>${ITEM_COLS.map(c => `<col${c.w ? ` style="width:${c.w}%"` : ''}>`).join('')}</colgroup>   <!-- fixed layout takes widths from here, not from the spanning title rows -->
+    <thead><tr class="pspace"><th colspan="${ITEM_COLS.length}"></th></tr>
+      <tr class="ihead"><th colspan="${ITEM_COLS.length}"><div class="mini"><b>פירוט סעיפי החשבון</b><span>חשבון ${L(d.account_code)} | חוזה ${L(d.contract_code)} | חודש ביצוע ${L(d.month)}</span></div></th></tr>
+      <tr>${ITEM_COLS.map(c => `<th${c.w ? ` style="width:${c.w}%"` : ''}>${c.h}</th>`).join('')}</tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
   $('doc').contentEditable = 'true';
   $('empty').hidden = true; $('paper').hidden = false;
-  $('paper').style.zoom = ''; fitNumbers(); fitPaper();
+  $('paper').style.zoom = ''; fitNumbers(); fitPage1(); fitPaper();
   let ps = $('pageStyle'); if(!ps){ ps = document.createElement('style'); ps.id = 'pageStyle'; document.head.appendChild(ps); }
   ps.textContent = `@media print{@page{@bottom-right{content:"${String(d.account_code || '').replace(/[^\w-]/g, '')}";font:8pt Arial,sans-serif;color:#8a94a3}}}`;
 }
@@ -906,6 +979,9 @@ function runChecks({ header, fin, items }){
   }
   for(const u of fin.summary?.unresolved || [])
     w.push(`לא ניתן לפצל את הסכום לחשבון חלקי בין ${u.labels.map(l => '"' + esc(l) + '"').join(' ו-')}: יחד הם ${money(u.amount)} בחשבון זה, אך הוצגו כ-0. שורת הסיכום שאחריהם לא תסתכם בתצוגה.`);
+  const st = fin.summary?.shown_total, pay = (fin.summary?.offset || []).concat(fin.summary?.rows || []).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));
+  if(st && pay && n(pay.cur) && st.cur !== undefined && !near(st.cur, n(pay.cur), 1))
+    w.push(`סכום העמודה "סכום לחשבון חלקי" בטבלה המסכמת (${money(st.cur)}) שונה מהסכום לתשלום בחשבון (${money(pay.cur)}).`);
   const sr = fin.summary?.rows || [], spi = sr.findIndex(r => /קודם/.test(r.label));
   if(spi > 0){   // the split computed from the BOQ must agree with the invoice's own totals
     const t = sr[spi - 1], pay = sr.slice(spi + 1).find(r => /לתשלום/.test(r.label) && !/כולל מע"מ/.test(r.label));
@@ -966,6 +1042,7 @@ function paginateItems(el){
   chunks.forEach((rows, i) => {
     if(i){ const b = document.createElement('div'); b.className = 'html2pdf__page-break'; box.appendChild(b); }
     const t = tbl.cloneNode(false), tb = document.createElement('tbody');
+    const cg = tbl.querySelector('colgroup'); if(cg) t.appendChild(cg.cloneNode(true));
     t.appendChild(tbl.tHead.cloneNode(true)); rows.forEach(r => tb.appendChild(r.cloneNode(true))); t.appendChild(tb); box.appendChild(t);
   });
   tbl.replaceWith(box);
@@ -1008,6 +1085,17 @@ $('dl').onclick = async () => {
     exMsg('יצירת ה-PDF נכשלה: ' + esc(e && e.message || e) + '. רעננו את הדף ונסו שוב.', true);
   }finally{ unpaginate(); fitPaper(); window.scrollTo(sx, sy); el.classList.remove('exporting'); el.contentEditable='true'; btn.disabled=false; btn.textContent='הורדה ישירה (PDF כתמונה)'; }
 };
+
+/* page 1 on one A4 sheet: the printable height is 297 − 14 mm (bottom margin) − 12 mm (top padding) = 271 mm */
+function fitPage1(){
+  const p1 = document.querySelector('#doc .p1'); if(!p1) return;
+  const paper = $('paper'), z = paper.style.zoom; paper.style.zoom = '';   // measure at full size
+  p1.style.removeProperty('--p1z');
+  const avail = 271 / 25.4 * 96 - 4, h = p1.scrollHeight * (695 / 703);   // the print page is a little wider than the preview
+  if(h > avail) p1.style.setProperty('--p1z', Math.max(0.7, avail / h).toFixed(3));
+  paper.style.zoom = z;
+}
+window.addEventListener('beforeprint', fitPage1);
 
 /* the on-screen page is a fixed A4 width; when the space next to the side panel is narrower, shrink it to fit
    (print and the PDF export always use the real size) */

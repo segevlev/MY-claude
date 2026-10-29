@@ -24,7 +24,9 @@ It needs internet access, because pdf.js and html2pdf.js load from cdnjs.
 6. **Export**: two paths with the same A4 layout and margins (12/12/12/14 mm).
    - **Browser print (primary, "PDF איכותי / הדפסה"):** `window.print()` produces a vector PDF with sharp, searchable text.
      - **Print CSS:** `@page` adds "page / pages" bottom-left and the account number bottom-right (`#pageStyle`, set per invoice). Rows, cards, signatures and the title bar never split, `thead` repeats, and `document.title` becomes the file name.
-     - **Page 1:** the spacing is tuned so that page 1 (header, details, KPIs, summary table, signatures) fits one sheet.
+     - **No top margin:** `@page` has no top margin, so Chrome never prints its own header (the date and the page title "invoice_…"). The top space is made by the content: `.p1` padding, `margin-top` after each page break, and a 12 mm spacer row (`tr.pspace`) at the top of the items table's repeating `thead`.
+     - **Page 1:** page 1 is wrapped in `.p1`. `fitPage1` measures it and, if it is taller than one sheet, scales it down (`--p1z`, at least 70%). The whole first page then fits one sheet, including the summary table.
+     - **Page order:** page 1, then a page with "ריכוז לפי מבנה", then a page break and the items table. The items title "פירוט סעיפי החשבון" is a row in its `thead`, so it repeats on every page. The table's column widths come from its `<colgroup>`, because a fixed layout would otherwise take them from the spanning title rows.
    - **Direct download (html2pdf, an image PDF).**
    - **Preview:** `fitPaper` shrinks the A4 page (CSS `zoom`) to the space next to the side panel, so it is never cut off. Print and the direct download use the real size.
    - **Footer counter:** it is `direction:ltr`, so it reads "2 / 9".
@@ -52,7 +54,9 @@ Columns are defined in `ITEM_COLS` (display order, header, width, cell value). P
 ## User rules for the summary table – do not break
 These were set by the user, and some were broken once and had to be fixed again. `tests/summary.test.js` checks them. Run it before every commit that touches the summary table: `NODE_PATH=$(npm root -g) node tests/summary.test.js`.
 1. **Column order**, right to left: תיאור, סכום לחשבון חלקי, + / − / =, מצטבר קודם, מצטבר נוכחי.
-2. **Indexation:**
+2. **Title:** the cards (contract / indexation data) come first, and the title "טבלה מסכמת" sits right above the table.
+2a. **Index basket:** every "מדד בסיס …" section of the indexation table is read, with its share: the % written on the line, else the share of the amount subject to indexation. With two or more indices, the הצמדה card lists them all by %, as a table with columns for the index (base month), % הצמדה and base value. The current indexation (`idx_cur`) sums this invoice's row of every index.
+2b. **Indexation:**
    - **Grouping:** every row whose text is about indexation goes to the התייקרויות block, matched in any spelling (`IDX_RE`).
    - **Position:** it sits ABOVE "סה"כ כולל התייקרות", also when the invoice subtracts it only after that subtotal.
    - **Subtotal:** in that case the subtotal shown is recalculated to include it.
@@ -63,7 +67,7 @@ These were set by the user, and some were broken once and had to be fixed again.
 4. **Retention** (עכבון) is its own block, last before סיכום.
 5. **Deductions:** the deductions block closes with "מצטבר לאחר קיזוזים", which excludes retention.
 6. **Hidden rows:** "סה"כ חשבון זה" and the "מצטבר … קודם" rows of סיכום are not shown. The "סה"כ" row covers them.
-7. **The pre-VAT total** reads "סה"כ", and every column of it is filled.
+7. **The pre-VAT total** reads "סה"כ", and every column of it is filled. Each column is the sum of the column as displayed: every subtotal shown sets the running sum, and every + / − row below it adds or subtracts. If the result differs from the invoice's payable, the checks panel says so.
 9. **The total is shown once.** A subtotal that closes the last block before סיכום and equals "סה"כ" in every column is not shown. This covers "מצטבר לאחר קיזוזים" and the retention total.
 8. **Duplicate row:** "… חשבון נוכחי (מצטבר: X)" is the current amount of the row whose cumulative is X. It is not shown as its own row.
 
